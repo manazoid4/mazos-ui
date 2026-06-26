@@ -1,22 +1,17 @@
-import "./globals.css";
-import type { Metadata } from "next";
+import type { Metadata } from 'next';
+import './globals.css';
 
 export const metadata: Metadata = {
-  title: "MazOS // Hermes Control Deck",
-  description: "Command & Control Interface for MazOS",
+  title: 'MAZ_OS // CONTROL DECK',
+  description: 'Local-first Hermes cockpit',
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <head>
-        <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800;900&family=Barlow:wght@400;600&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet" />
-      </head>
-      <body>{children}</body>
+      <body style={{ minHeight: '100vh', padding: '20px 24px' }}>
+        {children}
+      </body>
     </html>
   );
 }

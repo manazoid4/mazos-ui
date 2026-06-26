@@ -1,93 +1,162 @@
-import React from 'react';
-import fs from 'fs';
-import path from 'path';
-import * as yaml from 'js-yaml';
+'use client';
 
-async function getControlPanelData() {
-  const filePath = path.join(process.cwd(), '../../.hermes/mazos/control-panel.yaml');
-  try {
-    const fileContents = fs.readFileSync(filePath, 'utf8');
-    const data = yaml.load(fileContents) as any;
-    return data;
-  } catch (e) {
-    console.error("Failed to read control-panel.yaml:", e);
-    return null;
-  }
-}
+import { useEffect, useState } from 'react';
 
-export default async function Page() {
-  const data = await getControlPanelData();
-  const toggles = data?.toggles || {};
-  const mission = data?.defaults?.active_mission || "UNKNOWN MISSION";
-  const priorityRepos = data?.defaults?.priority_repos || [];
+type Button = { id: string; label: string; description: string; category: string; danger_level: string; command_value: string; hotkey?: string };
+type Data = { mission: string; priority_repos: string[]; toggles: Record<string, boolean>; buttons: Button[] };
+
+const DANGER_COLOR: Record<string, string> = {
+  safe: 'var(--green)',
+  caution: 'var(--yellow)',
+  danger: 'var(--red)',
+};
+
+export default function Page() {
+  const [data, setData] = useState<Data | null>(null);
+  const [active, setActive] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch('/api/mazos').then(r => r.json()).then(setData);
+  }, []);
+
+  if (!data) return (
+    <div style={{ fontFamily: "'JetBrains Mono'", color: 'var(--accent)', fontSize: 12 }}>
+      LOADING MAZ_OS...
+    </div>
+  );
+
+  const grouped = data.buttons.reduce<Record<string, Button[]>>((acc, b) => {
+    (acc[b.category] ??= []).push(b);
+    return acc;
+  }, {});
 
   return (
     <>
-      <header className="flex justify-between items-center border-b-[3px] border-line pb-[10px] mb-[20px]">
+      {/* Header */}
+      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '3px solid var(--line)', paddingBottom: 10, marginBottom: 20 }}>
         <div>
-          <h1 className="font-['Barlow_Condensed'] text-4xl uppercase m-0">MAZ_OS // CONTROL DECK</h1>
-          <div className="font-['JetBrains_Mono'] text-[10px] text-muted mt-[4px]">Local-First Hermes Cockpit</div>
+          <h1 style={{ fontFamily: "'Barlow Condensed'", fontSize: 36, fontWeight: 800, textTransform: 'uppercase', margin: 0, letterSpacing: 1 }}>
+            MAZ_OS // CONTROL DECK
+          </h1>
+          <div style={{ fontFamily: "'JetBrains Mono'", fontSize: 10, color: 'var(--muted)', marginTop: 4 }}>
+            Local-First Hermes Cockpit
+          </div>
         </div>
-        <div className="font-['JetBrains_Mono'] text-[12px] text-accent uppercase">
-          MISSION: <span className="text-ink">{mission}</span>
+        <div style={{ fontFamily: "'JetBrains Mono'", fontSize: 12, color: 'var(--accent)', textTransform: 'uppercase' }}>
+          MISSION: <span style={{ color: 'var(--ink)' }}>{data.mission}</span>
         </div>
       </header>
 
-      <div className="grid grid-cols-[250px_1fr_300px] gap-5">
-        <aside>
-          <div className="bg-card border border-line rounded-[4px] p-[15px] mb-[15px]">
-            <div className="flex justify-between items-center border-b border-line pb-[8px] mb-[12px]">
-              <h2 className="text-xl">Active Toggles</h2>
-              <span className="font-['JetBrains_Mono'] text-[9px] bg-line px-[6px] py-[2px] rounded uppercase text-ink">YAML</span>
-            </div>
-            <div className="flex flex-col gap-[6px]">
-              {Object.entries(toggles).map(([key, value]) => (
-                <div key={key} className={`p-[6px_10px] bg-bg border-l-[3px] font-['JetBrains_Mono'] text-[11px] uppercase flex justify-between ${value ? 'border-green text-ink' : 'border-line text-muted'}`}>
-                  <span>{key.replace(/_/g, ' ')}</span>
-                  <span>{value ? 'ON' : 'OFF'}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-          
-          <div className="bg-card border border-line rounded-[4px] p-[15px] mb-[15px]">
-            <div className="flex justify-between items-center border-b border-line pb-[8px] mb-[12px]">
-              <h2 className="text-xl">Repo Priority</h2>
-            </div>
-            <div className="flex flex-col gap-[6px]">
-               {priorityRepos.map((repo: string, i: number) => (
-                <div key={repo} className={`p-[6px_10px] bg-bg border-l-[3px] font-['JetBrains_Mono'] text-[11px] uppercase ${i === 0 ? 'border-green text-ink' : 'border-line text-muted'}`}>
-                  {i + 1}. {repo}
-                </div>
-              ))}
-            </div>
-          </div>
+      {/* Grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: '240px 1fr 260px', gap: 20 }}>
+
+        {/* Left: Toggles + Repos */}
+        <aside style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <Panel title="Active Toggles" badge="YAML">
+            {Object.entries(data.toggles).map(([k, v]) => (
+              <div key={k} style={{
+                padding: '5px 10px', background: 'var(--bg)',
+                borderLeft: `3px solid ${v ? 'var(--green)' : 'var(--line)'}`,
+                fontFamily: "'JetBrains Mono'", fontSize: 10, textTransform: 'uppercase',
+                display: 'flex', justifyContent: 'space-between',
+                color: v ? 'var(--ink)' : 'var(--muted)',
+              }}>
+                <span>{k.replace(/_/g, ' ')}</span>
+                <span>{v ? 'ON' : 'OFF'}</span>
+              </div>
+            ))}
+          </Panel>
+
+          <Panel title="Repo Priority">
+            {data.priority_repos.map((r, i) => (
+              <div key={r} style={{
+                padding: '5px 10px', background: 'var(--bg)',
+                borderLeft: `3px solid ${i === 0 ? 'var(--green)' : 'var(--line)'}`,
+                fontFamily: "'JetBrains Mono'", fontSize: 10, textTransform: 'uppercase',
+                color: i === 0 ? 'var(--ink)' : 'var(--muted)',
+              }}>
+                {i + 1}. {r}
+              </div>
+            ))}
+          </Panel>
         </aside>
 
-        <main>
-          <div className="bg-card border border-line rounded-[4px] p-[15px] mb-[15px]">
-            <div className="flex justify-between items-center border-b border-line pb-[8px] mb-[12px]">
-              <h2 className="text-xl">Action Deck</h2>
-              <span className="font-['JetBrains_Mono'] text-[9px] bg-green/20 text-green px-[6px] py-[2px] rounded uppercase border border-green/30">Safe</span>
-            </div>
-            <div className="grid grid-cols-3 gap-2">
-               {/* Action deck populated from buttons.json or static for now */}
-               <div className="bg-paper border border-line p-[10px] text-center cursor-pointer hover:border-accent">
-                 <div className="font-['Barlow_Condensed'] text-lg">Build App</div>
-               </div>
-            </div>
-          </div>
+        {/* Centre: Action Deck */}
+        <main style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {Object.entries(grouped).map(([cat, btns]) => (
+            <Panel key={cat} title={cat}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 8 }}>
+                {btns.map(b => (
+                  <button key={b.id} onClick={() => setActive(b.id === active ? null : b.id)} style={{
+                    background: active === b.id ? 'var(--accent)' : 'var(--bg)',
+                    border: `2px solid ${active === b.id ? 'var(--accent)' : DANGER_COLOR[b.danger_level] || 'var(--line)'}`,
+                    color: active === b.id ? '#000' : 'var(--ink)',
+                    padding: '10px 12px', cursor: 'pointer', textAlign: 'left',
+                    borderRadius: 3, transition: 'all 0.15s',
+                  }}>
+                    <div style={{ fontFamily: "'Barlow Condensed'", fontSize: 16, fontWeight: 700, textTransform: 'uppercase' }}>
+                      {b.label}
+                    </div>
+                    <div style={{ fontFamily: "'JetBrains Mono'", fontSize: 9, color: active === b.id ? '#000' : 'var(--muted)', marginTop: 4 }}>
+                      {b.description}
+                    </div>
+                    {b.hotkey && (
+                      <div style={{ fontFamily: "'JetBrains Mono'", fontSize: 8, color: active === b.id ? '#333' : 'var(--accent)', marginTop: 6 }}>
+                        [{b.hotkey}]
+                      </div>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </Panel>
+          ))}
         </main>
-        
+
+        {/* Right: Active command */}
         <aside>
-           <div className="bg-card border border-line rounded-[4px] p-[15px]">
-             <h2 className="text-xl border-b border-line pb-[8px] mb-[12px]">System Logs</h2>
-             <div className="font-['JetBrains_Mono'] text-[10px] text-muted h-[400px] overflow-y-auto">
-                No logs available yet.
-             </div>
-           </div>
+          <Panel title="Command Output">
+            {active ? (
+              <div>
+                {(() => {
+                  const btn = data.buttons.find(b => b.id === active)!;
+                  return (
+                    <>
+                      <div style={{ fontFamily: "'Barlow Condensed'", fontSize: 18, textTransform: 'uppercase', color: 'var(--accent)', marginBottom: 8 }}>
+                        {btn.label}
+                      </div>
+                      <div style={{ fontFamily: "'JetBrains Mono'", fontSize: 10, color: 'var(--muted)', marginBottom: 12 }}>
+                        {btn.description}
+                      </div>
+                      <div style={{ fontFamily: "'JetBrains Mono'", fontSize: 10, background: 'var(--bg)', padding: 10, borderLeft: '3px solid var(--accent)', wordBreak: 'break-all' }}>
+                        $ hermes {btn.command_value}
+                      </div>
+                      <div style={{ marginTop: 12, fontFamily: "'JetBrains Mono'", fontSize: 9, color: 'var(--muted)' }}>
+                        DANGER: <span style={{ color: DANGER_COLOR[btn.danger_level] }}>{btn.danger_level.toUpperCase()}</span>
+                      </div>
+                    </>
+                  );
+                })()}
+              </div>
+            ) : (
+              <div style={{ fontFamily: "'JetBrains Mono'", fontSize: 10, color: 'var(--muted)' }}>
+                Click a button to see its command.
+              </div>
+            )}
+          </Panel>
         </aside>
       </div>
     </>
+  );
+}
+
+function Panel({ title, badge, children }: { title: string; badge?: string; children: React.ReactNode }) {
+  return (
+    <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 4, padding: 15 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--line)', paddingBottom: 8, marginBottom: 12 }}>
+        <h2 style={{ fontFamily: "'Barlow Condensed'", fontSize: 18, textTransform: 'uppercase', margin: 0 }}>{title}</h2>
+        {badge && <span style={{ fontFamily: "'JetBrains Mono'", fontSize: 9, background: 'var(--line)', padding: '2px 6px', borderRadius: 3, textTransform: 'uppercase' }}>{badge}</span>}
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>{children}</div>
+    </div>
   );
 }

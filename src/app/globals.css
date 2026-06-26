@@ -1,31 +1,25 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800;900&family=Barlow:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap');
+@import "tailwindcss";
 
 :root {
-  --bg: #0a0a0a; 
-  --paper: #141414; 
-  --ink: #f0ede6; 
-  --muted: #666;
-  --accent: #00d4ff; 
-  --red: #ff3b3b; 
-  --green: #00ff88; 
-  --orange: #fe6e00;
-  --line: #2a2a2a; 
-  --card-bg: #1a1a1a;
+  --bg: #0a0a0a;
+  --paper: #141414;
+  --card: #1a1a1a;
+  --ink: #f0ede6;
+  --muted: #888;
+  --accent: #00d4ff;
+  --green: #22c55e;
+  --red: #ef4444;
+  --line: #2a2a2a;
+  --yellow: #E3B72A;
 }
 
-body {
-  background: var(--bg); 
-  color: var(--ink); 
-  font-family: 'Barlow', sans-serif;
-  margin: 0; 
-  padding: 20px; 
-  overflow-x: hidden;
-}
-
-h1, h2, h3 { 
-  font-family: 'Barlow Condensed', sans-serif; 
-  text-transform: uppercase; 
-  margin: 0; 
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'Barlow', system-ui, sans-serif;
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
 }
