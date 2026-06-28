@@ -20,8 +20,9 @@ export async function POST(req: Request) {
     }
 
     if (action_type === 'email_digest') {
-      // In a real app this would trigger the actual digest script, for now just call the route
-      return NextResponse.json({ success: true, output: 'Digest job triggered via API' });
+      const res = await fetch('http://localhost:3000/api/mazos/email-digest', { method: 'POST' });
+      const data = await res.json();
+      return NextResponse.json(data);
     }
 
     return NextResponse.json({ error: `Unsupported action_type: ${action_type}` }, { status: 400 });

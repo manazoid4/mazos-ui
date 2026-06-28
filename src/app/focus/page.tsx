@@ -17,9 +17,30 @@ export default function FocusPage() {
   const [output, setOutput] = useState('');
   const [distractionInput, setDistractionInput] = useState('');
 
+  const [timeElapsed, setTimeElapsed] = useState(0);
+
   useEffect(() => {
     fetchSessions();
   }, [fetchSessions]);
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (currentSession && currentSession.startedAt) {
+      interval = setInterval(() => {
+        const start = new Date(currentSession.startedAt!).getTime();
+        setTimeElapsed(Math.floor((Date.now() - start) / 1000));
+      }, 1000);
+    } else {
+      setTimeElapsed(0);
+    }
+    return () => clearInterval(interval);
+  }, [currentSession]);
+
+  const formatTime = (seconds: number) => {
+    const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+    const s = (seconds % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
+  };
 
   const handleStart = () => {
     if (!task.trim()) return;
@@ -46,7 +67,10 @@ export default function FocusPage() {
 
       {currentSession ? (
         <div className="p-6 border rounded-lg bg-card text-card-foreground shadow-sm space-y-4">
-          <h2 className="text-xl font-semibold text-primary animate-pulse">Session Active</h2>
+          <div className="flex justify-between items-center">
+            <h2 className="text-xl font-semibold text-primary animate-pulse">Session Active</h2>
+            <div className="text-3xl font-mono font-bold">{formatTime(timeElapsed)}</div>
+          </div>
           <div className="grid grid-cols-2 gap-4">
             <div><strong>Project:</strong> {currentSession.project}</div>
             <div><strong>Task:</strong> {currentSession.task}</div>
