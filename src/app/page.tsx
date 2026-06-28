@@ -14,7 +14,14 @@ type Button = {
   action_type: ActionType;
   hotkey?: string; 
 };
-type Data = { mission: string; priority_repos: string[]; toggles: Record<string, boolean>; buttons: Button[] };
+type Agent = {
+  id: string;
+  name: string;
+  description: string;
+  tools: string[];
+  model: string;
+};
+type Data = { mission: string; priority_repos: string[]; toggles: Record<string, boolean>; buttons: Button[]; agents: Agent[] };
 
 const DANGER_COLOR: Record<string, string> = {
   safe: 'var(--green)',
@@ -24,13 +31,17 @@ const DANGER_COLOR: Record<string, string> = {
 
 export default function Page() {
   const [data, setData] = useState<Data | null>(null);
-  const [active, setActive] = useState<string | null>(null);
-
   const [output, setOutput] = useState<string>('');
+  const [active, setActive] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
 
   useEffect(() => {
-    fetch('/api/mazos').then(r => r.json()).then(setData);
+    Promise.all([
+      fetch('/api/mazos').then(r => r.json()),
+      fetch('/api/mazos/agents').then(r => r.json()).catch(() => ({ agents: [] }))
+    ]).then(([mainData, agentsData]) => {
+      setData({ ...mainData, agents: agentsData.agents || [] });
+    });
   }, []);
 
   const handleAction = async (btn: Button) => {
@@ -156,7 +167,27 @@ export default function Page() {
         </main>
 
         {/* Right: Active command */}
-        <aside>
+        <aside style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <Panel title="Available Agents">
+            {data?.agents && data.agents.length > 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {data.agents.map(agent => (
+                  <div key={agent.id} style={{ 
+                    padding: '8px 0', borderBottom: '1px solid var(--line)', 
+                    display: 'flex', flexDirection: 'column', gap: 4 
+                  }}>
+                    <div style={{ fontFamily: "'Barlow Condensed'", fontSize: 16, color: 'var(--accent)', textTransform: 'uppercase' }}>
+                      {agent.name} <span style={{ fontSize: 10, color: 'var(--muted)', fontFamily: "'JetBrains Mono'" }}>({agent.id})</span>
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--ink)', lineHeight: 1.3 }}>{agent.description}</div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{ color: 'var(--muted)', fontSize: 12, fontStyle: 'italic' }}>No agents defined.</div>
+            )}
+          </Panel>
+
           <Panel title="Command Output">
             {active ? (
               <div>

@@ -14,7 +14,7 @@
       "title": "Build config/agents.json",
       "description": "Create the agents.json configuration file inside mazos-ui/config based on oh-my-claude specializations (advisor, risk-assessor, critic, code-reviewer, validator, librarian, security-auditor).",
       "priority": 2,
-      "passes": false
+      "passes": true
     },
     {
       "id": "story-3",

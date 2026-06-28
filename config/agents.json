@@ -1,0 +1,32 @@
+{
+  "agents": [
+    {
+      "id": "advisor",
+      "name": "Strategic Advisor",
+      "description": "Guides high-level project direction and business strategy.",
+      "tools": ["read_file", "search_files"],
+      "model": "hermes-coder"
+    },
+    {
+      "id": "critic",
+      "name": "Harsh Critic",
+      "description": "Tears down assumptions and demands minimal, revenue-focused execution.",
+      "tools": ["read_file", "patch"],
+      "model": "hermes-coder"
+    },
+    {
+      "id": "validator",
+      "name": "Execution Validator",
+      "description": "Verifies code compiles and tests pass before committing.",
+      "tools": ["terminal", "read_file", "patch"],
+      "model": "hermes-coder"
+    },
+    {
+      "id": "scout",
+      "name": "Recon Scout",
+      "description": "Maps existing systems, dependencies, and environment state.",
+      "tools": ["terminal", "search_files", "execute_code"],
+      "model": "hermes-coder"
+    }
+  ]
+}
