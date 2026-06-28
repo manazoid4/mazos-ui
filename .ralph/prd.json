@@ -7,7 +7,7 @@
       "title": "Build EXISTING_AUTOMATION_MAP.md",
       "description": "Scan C:/Users/manaz/Desktop/Obsidian Main Vault and all project repos to map every existing cron, workflow, and n8n job to research/automation/EXISTING_AUTOMATION_MAP.md.",
       "priority": 1,
-      "passes": false
+      "passes": true
     },
     {
       "id": "story-2",
