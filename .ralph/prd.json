@@ -1,0 +1,27 @@
+{
+  "plan_source": "TechDufus/oh-my-claude (Ultrawork & Agent specializations)",
+  "created_at": "2026-06-28T07:15:00Z",
+  "stories": [
+    {
+      "id": "story-1",
+      "title": "Build EXISTING_AUTOMATION_MAP.md",
+      "description": "Scan C:/Users/manaz/Desktop/Obsidian Main Vault and all project repos to map every existing cron, workflow, and n8n job to research/automation/EXISTING_AUTOMATION_MAP.md.",
+      "priority": 1,
+      "passes": false
+    },
+    {
+      "id": "story-2",
+      "title": "Build config/agents.json",
+      "description": "Create the agents.json configuration file inside mazos-ui/config based on oh-my-claude specializations (advisor, risk-assessor, critic, code-reviewer, validator, librarian, security-auditor).",
+      "priority": 2,
+      "passes": false
+    },
+    {
+      "id": "story-3",
+      "title": "Integrate Agents into MazOS UI",
+      "description": "Add the newly defined agents from config/agents.json into the MazOS frontend dashboard so they can be triggered visually.",
+      "priority": 3,
+      "passes": false
+    }
+  ]
+}
