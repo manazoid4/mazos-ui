@@ -2,7 +2,18 @@
 
 import { useEffect, useState } from 'react';
 
-type Button = { id: string; label: string; description: string; category: string; danger_level: string; command_value: string; hotkey?: string };
+export type ActionType = 'scan_vault' | 'email_digest' | 'run_safe_prompt' | 'open_url';
+
+type Button = { 
+  id: string; 
+  label: string; 
+  description: string; 
+  category: string; 
+  danger_level: string; 
+  command_value: string; 
+  action_type: ActionType;
+  hotkey?: string; 
+};
 type Data = { mission: string; priority_repos: string[]; toggles: Record<string, boolean>; buttons: Button[] };
 
 const DANGER_COLOR: Record<string, string> = {
@@ -15,9 +26,32 @@ export default function Page() {
   const [data, setData] = useState<Data | null>(null);
   const [active, setActive] = useState<string | null>(null);
 
+  const [output, setOutput] = useState<string>('');
+  const [loading, setLoading] = useState<boolean>(false);
+
   useEffect(() => {
     fetch('/api/mazos').then(r => r.json()).then(setData);
   }, []);
+
+  const handleAction = async (btn: Button) => {
+    if (btn.action_type === 'open_url') return;
+    
+    setLoading(true);
+    setOutput('Executing...');
+    try {
+      const res = await fetch('/api/mazos/action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(btn)
+      });
+      const data = await res.json();
+      if (data.error) setOutput(`ERROR: ${data.error}`);
+      else setOutput(data.output || 'Success');
+    } catch (e: any) {
+      setOutput(`ERROR: ${e.message}`);
+    }
+    setLoading(false);
+  };
 
   if (!data) return (
     <div style={{ fontFamily: "'JetBrains Mono'", color: 'var(--accent)', fontSize: 12 }}>
@@ -86,27 +120,36 @@ export default function Page() {
           {Object.entries(grouped).map(([cat, btns]) => (
             <Panel key={cat} title={cat}>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 8 }}>
-                {btns.map(b => (
-                  <button key={b.id} onClick={() => setActive(b.id === active ? null : b.id)} style={{
-                    background: active === b.id ? 'var(--accent)' : 'var(--bg)',
-                    border: `2px solid ${active === b.id ? 'var(--accent)' : DANGER_COLOR[b.danger_level] || 'var(--line)'}`,
-                    color: active === b.id ? '#000' : 'var(--ink)',
-                    padding: '10px 12px', cursor: 'pointer', textAlign: 'left',
-                    borderRadius: 3, transition: 'all 0.15s',
-                  }}>
-                    <div style={{ fontFamily: "'Barlow Condensed'", fontSize: 16, fontWeight: 700, textTransform: 'uppercase' }}>
-                      {b.label}
-                    </div>
-                    <div style={{ fontFamily: "'JetBrains Mono'", fontSize: 9, color: active === b.id ? '#000' : 'var(--muted)', marginTop: 4 }}>
-                      {b.description}
-                    </div>
-                    {b.hotkey && (
-                      <div style={{ fontFamily: "'JetBrains Mono'", fontSize: 8, color: active === b.id ? '#333' : 'var(--accent)', marginTop: 6 }}>
-                        [{b.hotkey}]
+                {btns.map(b => {
+                  const isLink = b.action_type === 'open_url';
+                  const innerBtn = (
+                    <button key={b.id} onClick={() => !isLink && setActive(b.id === active ? null : b.id)} style={{
+                      background: active === b.id ? 'var(--accent)' : 'var(--bg)',
+                      border: `2px solid ${active === b.id ? 'var(--accent)' : DANGER_COLOR[b.danger_level] || 'var(--line)'}`,
+                      color: active === b.id ? '#000' : 'var(--ink)',
+                      padding: '10px 12px', cursor: 'pointer', textAlign: 'left',
+                      borderRadius: 3, transition: 'all 0.15s',
+                      width: '100%',
+                    }}>
+                      <div style={{ fontFamily: "'Barlow Condensed'", fontSize: 16, fontWeight: 700, textTransform: 'uppercase' }}>
+                        {b.label}
                       </div>
-                    )}
-                  </button>
-                ))}
+                      <div style={{ fontFamily: "'JetBrains Mono'", fontSize: 9, color: active === b.id ? '#000' : 'var(--muted)', marginTop: 4 }}>
+                        {b.description}
+                      </div>
+                      {b.hotkey && (
+                        <div style={{ fontFamily: "'JetBrains Mono'", fontSize: 8, color: active === b.id ? '#333' : 'var(--accent)', marginTop: 6 }}>
+                          [{b.hotkey}]
+                        </div>
+                      )}
+                    </button>
+                  );
+                  return isLink ? (
+                    <a key={b.id} href={b.command_value} style={{ textDecoration: 'none' }}>
+                      {innerBtn}
+                    </a>
+                  ) : innerBtn;
+                })}
               </div>
             </Panel>
           ))}
@@ -130,6 +173,26 @@ export default function Page() {
                       <div style={{ fontFamily: "'JetBrains Mono'", fontSize: 10, background: 'var(--bg)', padding: 10, borderLeft: '3px solid var(--accent)', wordBreak: 'break-all' }}>
                         $ hermes {btn.command_value}
                       </div>
+                      
+                      {!btn.action_type || btn.action_type !== 'open_url' ? (
+                        <button 
+                          onClick={() => handleAction(btn)}
+                          disabled={loading}
+                          style={{
+                            marginTop: 12, padding: '8px 12px', background: 'var(--accent)', color: '#000',
+                            border: 'none', borderRadius: 4, fontFamily: "'Barlow Condensed'", fontWeight: 'bold', cursor: loading ? 'not-allowed' : 'pointer'
+                          }}
+                        >
+                          {loading ? 'EXECUTING...' : 'RUN ACTION'}
+                        </button>
+                      ) : null}
+
+                      {output && (
+                        <div style={{ marginTop: 12, fontFamily: "'JetBrains Mono'", fontSize: 10, color: 'var(--ink)', background: 'var(--bg)', padding: 8, whiteSpace: 'pre-wrap', maxHeight: 200, overflowY: 'auto', border: '1px solid var(--line)' }}>
+                          {output}
+                        </div>
+                      )}
+
                       <div style={{ marginTop: 12, fontFamily: "'JetBrains Mono'", fontSize: 9, color: 'var(--muted)' }}>
                         DANGER: <span style={{ color: DANGER_COLOR[btn.danger_level] }}>{btn.danger_level.toUpperCase()}</span>
                       </div>

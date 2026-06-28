@@ -1,0 +1,38 @@
+[
+  {
+    "id": "start-focus",
+    "label": "Start Focus Sprint",
+    "description": "Launch the UltraWork focus loop",
+    "category": "Execution",
+    "danger_level": "safe",
+    "action_type": "open_url",
+    "command_value": "/focus",
+    "enabled": true,
+    "requires_confirmation": false,
+    "output_target": ""
+  },
+  {
+    "id": "scan-vault",
+    "label": "Scan Vault",
+    "description": "Scan vaults and update Maz Intent Map",
+    "category": "Vault",
+    "danger_level": "safe",
+    "action_type": "scan_vault",
+    "command_value": "hermes run --prompt-file prompts/cron/obsidian-prompt-miner.md",
+    "enabled": true,
+    "requires_confirmation": false,
+    "output_target": "research/mazos/latest-vault-scan.md"
+  },
+  {
+    "id": "email-digest",
+    "label": "Send Weekly Digest",
+    "description": "Generate and email the weekly repo & blocker digest",
+    "category": "Automation",
+    "danger_level": "safe",
+    "action_type": "email_digest",
+    "command_value": "/api/mazos/email-digest",
+    "enabled": true,
+    "requires_confirmation": true,
+    "output_target": "research/weekly/latest-email-digest.md"
+  }
+]

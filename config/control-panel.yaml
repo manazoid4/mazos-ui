@@ -1,0 +1,20 @@
+budget: "1000"
+danger_mode: "disabled"
+challenges: "strict"
+defaults:
+  active_mission: "MazOS Local Cockpit Completion"
+  priority_repos:
+    - "C:/Users/manaz/Projects/mazos-ui"
+    - "C:/Users/manaz/Desktop/JobFilterV1"
+
+environment:
+  EMAIL_PROVIDER: "resend"
+  EMAIL_FROM: "onboarding@resend.dev"
+  NOTIFY_EMAIL: "manazoid4@gmail.com"
+  
+controls:
+  automation_enabled: true
+  weekly_digest_enabled: true
+  repo_scan_enabled: true
+  vault_scan_enabled: true
+  focus_sessions_enabled: true
