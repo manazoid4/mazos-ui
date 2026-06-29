@@ -12,6 +12,8 @@ const COMMANDS: Record<string, string> = {
   git_unpushed_scan: 'git -C C:/Users/manaz/Projects/mazos-ui status -sb && git -C C:/Users/manaz/Projects/recall status -sb',
   market_research_brief: 'python - <<\'PY\'\nfrom pathlib import Path\np=Path(\'C:/Users/manaz/Desktop/Obsidian Main Vault/Projects/Recall/market-research-brief.md\')\np.parent.mkdir(parents=True, exist_ok=True)\np.write_text(\'# Market research brief\\n\\n- Capture source URLs in Recall.\\n- Tag pain/WTP/audience.\\n- Validate with outbound before building.\\n\', encoding=\'utf-8\')\nprint(p)\nPY',
   email_digest: 'python C:/Users/manaz/AppData/Local/hermes/scripts/send_session_digest.py',
+  update_github_repos: 'cd C:/Users/manaz/Projects/mazos-ui && git status -sb && npm run build && git remote get-url origin && git push && printf "\\nMazOS GitHub: https://github.com/manazoid4/mazos-ui\\nObsidian GitHub: https://github.com/manazoid4/claude-obsidian\\n"',
+  obsidian_immersion_plan: 'python - <<\'PY\'\nfrom pathlib import Path\np=Path(\'C:/Users/manaz/Desktop/Obsidian Main Vault/06-SYSTEM/OBSIDIAN_IMMERSION_PLAN.md\')\np.parent.mkdir(parents=True, exist_ok=True)\np.write_text(\'# Obsidian Immersion Plan\\n\\n1. Read hot/index + 03-MEMORY only.\\n2. Search targeted terms: tone, prompts, JobFilter, Recall, MazOS, Hermes.\\n3. Extract durable style/tasks/decisions into memory files.\\n4. Never load whole vault.\\n5. Write session summaries after serious work.\\n\\nStarter: Read memory indexes, search before assumptions, keep context small, update tasks/decisions/session summary.\\n\', encoding=\'utf-8\')\nprint(p)\nPY',
 };
 
 function recallCommand(url: string) {

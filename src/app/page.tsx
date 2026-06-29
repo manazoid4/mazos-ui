@@ -17,6 +17,8 @@ const TASKS: Button[] = [
   { id: 'unpushed', label: 'Git check', description: 'Find uncommitted/unpushed repos', category: 'Agent Tasks', danger_level: 'safe', command_value: 'git_unpushed_scan', action_type: 'agent_task' },
   { id: 'market', label: 'Market scan', description: 'Create lightweight market-research brief', category: 'Agent Tasks', danger_level: 'safe', command_value: 'market_research_brief', action_type: 'agent_task' },
   { id: 'digest', label: 'Email digest', description: 'Send session HTML digest', category: 'Agent Tasks', danger_level: 'caution', command_value: 'email_digest', action_type: 'email_digest' },
+  { id: 'update-github', label: 'Update GitHub', description: 'Status/build/push + show direct URLs', category: 'Agent Tasks', danger_level: 'caution', command_value: 'update_github_repos', action_type: 'agent_task' },
+  { id: 'obsidian-immersion', label: 'Obsidian immersion', description: 'Plan vault/tone/prompt immersion', category: 'Agent Tasks', danger_level: 'safe', command_value: 'obsidian_immersion_plan', action_type: 'agent_task' },
 ];
 
 export default function Page() {
