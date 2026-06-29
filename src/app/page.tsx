@@ -1,256 +1,108 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
-export type ActionType = 'scan_vault' | 'email_digest' | 'run_safe_prompt' | 'open_url';
+type ActionType = 'scan_vault' | 'email_digest' | 'run_safe_prompt' | 'open_url' | 'agent_task' | 'recall_ingest' | 'custom_command';
+type Button = { id: string; label: string; description: string; category: string; danger_level: string; command_value: string; action_type: ActionType; hotkey?: string };
+type Agent = { id: string; name: string; description: string; tools: string[]; model: string };
+type Plugin = { name: string; kind: string; enabled: boolean; last_used: string };
+type Session = { id: string; title: string; source: string; last_active: string };
+type Data = { mission: string; priority_repos: string[]; toggles: Record<string, boolean>; buttons: Button[]; agents: Agent[]; plugins?: Plugin[]; sessions?: Session[] };
 
-type Button = { 
-  id: string; 
-  label: string; 
-  description: string; 
-  category: string; 
-  danger_level: string; 
-  command_value: string; 
-  action_type: ActionType;
-  hotkey?: string; 
-};
-type Agent = {
-  id: string;
-  name: string;
-  description: string;
-  tools: string[];
-  model: string;
-};
-type Data = { mission: string; priority_repos: string[]; toggles: Record<string, boolean>; buttons: Button[]; agents: Agent[] };
-
-const DANGER_COLOR: Record<string, string> = {
-  safe: 'var(--green)',
-  caution: 'var(--yellow)',
-  danger: 'var(--red)',
-};
+const DANGER_COLOR: Record<string, string> = { safe: 'var(--green)', caution: 'var(--yellow)', danger: 'var(--red)' };
+const TASKS: Button[] = [
+  { id: 'last5', label: 'Scan last 5', description: 'Find unfinished/unpushed work', category: 'Agent Tasks', danger_level: 'safe', command_value: 'scan_last_5_sessions', action_type: 'agent_task' },
+  { id: 'recall', label: 'Improve Recall', description: 'Audit Recall ingest gaps', category: 'Agent Tasks', danger_level: 'safe', command_value: 'improve_recall', action_type: 'agent_task' },
+  { id: 'vault', label: 'Vault index', description: 'Refresh Obsidian memory index', category: 'Agent Tasks', danger_level: 'safe', command_value: 'refresh_vault_index', action_type: 'agent_task' },
+  { id: 'unpushed', label: 'Git check', description: 'Find uncommitted/unpushed repos', category: 'Agent Tasks', danger_level: 'safe', command_value: 'git_unpushed_scan', action_type: 'agent_task' },
+  { id: 'market', label: 'Market scan', description: 'Create lightweight market-research brief', category: 'Agent Tasks', danger_level: 'safe', command_value: 'market_research_brief', action_type: 'agent_task' },
+  { id: 'digest', label: 'Email digest', description: 'Send session HTML digest', category: 'Agent Tasks', danger_level: 'caution', command_value: 'email_digest', action_type: 'email_digest' },
+];
 
 export default function Page() {
   const [data, setData] = useState<Data | null>(null);
-  const [output, setOutput] = useState<string>('');
+  const [output, setOutput] = useState('');
   const [active, setActive] = useState<string | null>(null);
-  const [loading, setLoading] = useState<boolean>(false);
+  const [loading, setLoading] = useState(false);
+  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+  const [custom, setCustom] = useState('');
+  const [recallUrl, setRecallUrl] = useState('');
 
   useEffect(() => {
+    document.documentElement.dataset.theme = theme;
     Promise.all([
       fetch('/api/mazos').then(r => r.json()),
       fetch('/api/mazos/agents').then(r => r.json()).catch(() => ({ agents: [] }))
-    ]).then(([mainData, agentsData]) => {
-      setData({ ...mainData, agents: agentsData.agents || [] });
-    });
-  }, []);
+    ]).then(([mainData, agentsData]) => setData({ ...mainData, agents: agentsData.agents || [] }));
+  }, [theme]);
 
-  const handleAction = async (btn: Button) => {
-    if (btn.action_type === 'open_url') return;
-    
-    setLoading(true);
-    setOutput('Executing...');
+  const buttons = useMemo(() => [...(data?.buttons || []), ...TASKS], [data]);
+  const grouped = buttons.reduce<Record<string, Button[]>>((acc, b) => ((acc[b.category] ??= []).push(b), acc), {});
+
+  async function run(payload: Partial<Button> & Record<string, unknown>) {
+    setLoading(true); setOutput('Executing...');
     try {
-      const res = await fetch('/api/mazos/action', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(btn)
-      });
-      const data = await res.json();
-      if (data.error) setOutput(`ERROR: ${data.error}`);
-      else setOutput(data.output || 'Success');
-    } catch (e: any) {
-      setOutput(`ERROR: ${e.message}`);
-    }
+      const res = await fetch('/api/mazos/action', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      const json = await res.json();
+      setOutput(json.output || JSON.stringify(json, null, 2));
+    } catch (e: any) { setOutput(`ERROR: ${e.message}`); }
     setLoading(false);
-  };
+  }
 
-  if (!data) return (
-    <div style={{ fontFamily: "'JetBrains Mono'", color: 'var(--accent)', fontSize: 12 }}>
-      LOADING MAZ_OS...
-    </div>
-  );
+  if (!data) return <div style={{ fontFamily: 'monospace', color: 'var(--accent)' }}>LOADING MAZ_OS...</div>;
 
-  const grouped = data.buttons.reduce<Record<string, Button[]>>((acc, b) => {
-    (acc[b.category] ??= []).push(b);
-    return acc;
-  }, {});
+  return <>
+    <header style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 16, borderBottom: '3px solid var(--line)', paddingBottom: 12, marginBottom: 18 }}>
+      <div><h1 style={{ fontFamily: "'Barlow Condensed'", fontSize: 38, fontWeight: 900, textTransform: 'uppercase', margin: 0 }}>MAZ_OS // AgentOS</h1><small>Mission: {data.mission}</small></div>
+      <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} style={pill}>{theme === 'dark' ? 'LIGHT' : 'DARK'} MODE</button>
+    </header>
 
-  return (
-    <>
-      {/* Header */}
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '3px solid var(--line)', paddingBottom: 10, marginBottom: 20 }}>
-        <div>
-          <h1 style={{ fontFamily: "'Barlow Condensed'", fontSize: 36, fontWeight: 800, textTransform: 'uppercase', margin: 0, letterSpacing: 1 }}>
-            MAZ_OS // CONTROL DECK
-          </h1>
-          <div style={{ fontFamily: "'JetBrains Mono'", fontSize: 10, color: 'var(--muted)', marginTop: 4 }}>
-            Local-First Hermes Cockpit
+    <Panel title="Current Sessions" badge={`${data.sessions?.length || 0} live/recent`}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 8 }}>
+        {(data.sessions || []).map(s => <div key={s.id} style={miniCard}><b>{s.title}</b><small>{s.id} · {s.source} · {s.last_active}</small></div>)}
+      </div>
+    </Panel>
+
+    <div style={{ display: 'grid', gridTemplateColumns: '260px 1fr 300px', gap: 18, marginTop: 18 }}>
+      <aside style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <Panel title="Enabled Plugins + Skills" badge="last use">
+          {(data.plugins || []).map(p => <div key={p.kind + p.name} style={row}><span>{p.enabled ? '●' : '○'} {p.name}</span><small>{p.kind} · {p.last_used}</small></div>)}
+        </Panel>
+        <Panel title="Repos">{data.priority_repos.map((r, i) => <div key={r} style={row}>{i + 1}. {r}</div>)}</Panel>
+      </aside>
+
+      <main style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <Panel title="Agent Tasks — Run Now" badge="safe cmds">
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: 8 }}>
+            {TASKS.map(b => <ActionButton key={b.id} b={b} active={active} setActive={setActive} run={run} />)}
           </div>
-        </div>
-        <div style={{ fontFamily: "'JetBrains Mono'", fontSize: 12, color: 'var(--accent)', textTransform: 'uppercase' }}>
-          MISSION: <span style={{ color: 'var(--ink)' }}>{data.mission}</span>
-        </div>
-      </header>
+        </Panel>
+        {Object.entries(grouped).filter(([cat]) => cat !== 'Agent Tasks').map(([cat, btns]) => <Panel key={cat} title={cat}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: 8 }}>{btns.map(b => <ActionButton key={b.id} b={b} active={active} setActive={setActive} run={run} />)}</div>
+        </Panel>)}
+      </main>
 
-      {/* Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: '240px 1fr 260px', gap: 20 }}>
-
-        {/* Left: Toggles + Repos */}
-        <aside style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <Panel title="Active Toggles" badge="YAML">
-            {Object.entries(data.toggles).map(([k, v]) => (
-              <div key={k} style={{
-                padding: '5px 10px', background: 'var(--bg)',
-                borderLeft: `3px solid ${v ? 'var(--green)' : 'var(--line)'}`,
-                fontFamily: "'JetBrains Mono'", fontSize: 10, textTransform: 'uppercase',
-                display: 'flex', justifyContent: 'space-between',
-                color: v ? 'var(--ink)' : 'var(--muted)',
-              }}>
-                <span>{k.replace(/_/g, ' ')}</span>
-                <span>{v ? 'ON' : 'OFF'}</span>
-              </div>
-            ))}
-          </Panel>
-
-          <Panel title="Repo Priority">
-            {data.priority_repos.map((r, i) => (
-              <div key={r} style={{
-                padding: '5px 10px', background: 'var(--bg)',
-                borderLeft: `3px solid ${i === 0 ? 'var(--green)' : 'var(--line)'}`,
-                fontFamily: "'JetBrains Mono'", fontSize: 10, textTransform: 'uppercase',
-                color: i === 0 ? 'var(--ink)' : 'var(--muted)',
-              }}>
-                {i + 1}. {r}
-              </div>
-            ))}
-          </Panel>
-        </aside>
-
-        {/* Centre: Action Deck */}
-        <main style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {Object.entries(grouped).map(([cat, btns]) => (
-            <Panel key={cat} title={cat}>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 8 }}>
-                {btns.map(b => {
-                  const isLink = b.action_type === 'open_url';
-                  const innerBtn = (
-                    <button key={b.id} onClick={() => !isLink && setActive(b.id === active ? null : b.id)} style={{
-                      background: active === b.id ? 'var(--accent)' : 'var(--bg)',
-                      border: `2px solid ${active === b.id ? 'var(--accent)' : DANGER_COLOR[b.danger_level] || 'var(--line)'}`,
-                      color: active === b.id ? '#000' : 'var(--ink)',
-                      padding: '10px 12px', cursor: 'pointer', textAlign: 'left',
-                      borderRadius: 3, transition: 'all 0.15s',
-                      width: '100%',
-                    }}>
-                      <div style={{ fontFamily: "'Barlow Condensed'", fontSize: 16, fontWeight: 700, textTransform: 'uppercase' }}>
-                        {b.label}
-                      </div>
-                      <div style={{ fontFamily: "'JetBrains Mono'", fontSize: 9, color: active === b.id ? '#000' : 'var(--muted)', marginTop: 4 }}>
-                        {b.description}
-                      </div>
-                      {b.hotkey && (
-                        <div style={{ fontFamily: "'JetBrains Mono'", fontSize: 8, color: active === b.id ? '#333' : 'var(--accent)', marginTop: 6 }}>
-                          [{b.hotkey}]
-                        </div>
-                      )}
-                    </button>
-                  );
-                  return isLink ? (
-                    <a key={b.id} href={b.command_value} style={{ textDecoration: 'none' }}>
-                      {innerBtn}
-                    </a>
-                  ) : innerBtn;
-                })}
-              </div>
-            </Panel>
-          ))}
-        </main>
-
-        {/* Right: Active command */}
-        <aside style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <Panel title="Available Agents">
-            {data?.agents && data.agents.length > 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {data.agents.map(agent => (
-                  <div key={agent.id} style={{ 
-                    padding: '8px 0', borderBottom: '1px solid var(--line)', 
-                    display: 'flex', flexDirection: 'column', gap: 4 
-                  }}>
-                    <div style={{ fontFamily: "'Barlow Condensed'", fontSize: 16, color: 'var(--accent)', textTransform: 'uppercase' }}>
-                      {agent.name} <span style={{ fontSize: 10, color: 'var(--muted)', fontFamily: "'JetBrains Mono'" }}>({agent.id})</span>
-                    </div>
-                    <div style={{ fontSize: 12, color: 'var(--ink)', lineHeight: 1.3 }}>{agent.description}</div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div style={{ color: 'var(--muted)', fontSize: 12, fontStyle: 'italic' }}>No agents defined.</div>
-            )}
-          </Panel>
-
-          <Panel title="Command Output">
-            {active ? (
-              <div>
-                {(() => {
-                  const btn = data.buttons.find(b => b.id === active)!;
-                  return (
-                    <>
-                      <div style={{ fontFamily: "'Barlow Condensed'", fontSize: 18, textTransform: 'uppercase', color: 'var(--accent)', marginBottom: 8 }}>
-                        {btn.label}
-                      </div>
-                      <div style={{ fontFamily: "'JetBrains Mono'", fontSize: 10, color: 'var(--muted)', marginBottom: 12 }}>
-                        {btn.description}
-                      </div>
-                      <div style={{ fontFamily: "'JetBrains Mono'", fontSize: 10, background: 'var(--bg)', padding: 10, borderLeft: '3px solid var(--accent)', wordBreak: 'break-all' }}>
-                        $ hermes {btn.command_value}
-                      </div>
-                      
-                      {!btn.action_type || btn.action_type !== 'open_url' ? (
-                        <button 
-                          onClick={() => handleAction(btn)}
-                          disabled={loading}
-                          style={{
-                            marginTop: 12, padding: '8px 12px', background: 'var(--accent)', color: '#000',
-                            border: 'none', borderRadius: 4, fontFamily: "'Barlow Condensed'", fontWeight: 'bold', cursor: loading ? 'not-allowed' : 'pointer'
-                          }}
-                        >
-                          {loading ? 'EXECUTING...' : 'RUN ACTION'}
-                        </button>
-                      ) : null}
-
-                      {output && (
-                        <div style={{ marginTop: 12, fontFamily: "'JetBrains Mono'", fontSize: 10, color: 'var(--ink)', background: 'var(--bg)', padding: 8, whiteSpace: 'pre-wrap', maxHeight: 200, overflowY: 'auto', border: '1px solid var(--line)' }}>
-                          {output}
-                        </div>
-                      )}
-
-                      <div style={{ marginTop: 12, fontFamily: "'JetBrains Mono'", fontSize: 9, color: 'var(--muted)' }}>
-                        DANGER: <span style={{ color: DANGER_COLOR[btn.danger_level] }}>{btn.danger_level.toUpperCase()}</span>
-                      </div>
-                    </>
-                  );
-                })()}
-              </div>
-            ) : (
-              <div style={{ fontFamily: "'JetBrains Mono'", fontSize: 10, color: 'var(--muted)' }}>
-                Click a button to see its command.
-              </div>
-            )}
-          </Panel>
-        </aside>
-      </div>
-    </>
-  );
-}
-
-function Panel({ title, badge, children }: { title: string; badge?: string; children: React.ReactNode }) {
-  return (
-    <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 4, padding: 15 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--line)', paddingBottom: 8, marginBottom: 12 }}>
-        <h2 style={{ fontFamily: "'Barlow Condensed'", fontSize: 18, textTransform: 'uppercase', margin: 0 }}>{title}</h2>
-        {badge && <span style={{ fontFamily: "'JetBrains Mono'", fontSize: 9, background: 'var(--line)', padding: '2px 6px', borderRadius: 3, textTransform: 'uppercase' }}>{badge}</span>}
-      </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>{children}</div>
+      <aside style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <Panel title="Recall ingest" badge="yt/ig">
+          <input value={recallUrl} onChange={e => setRecallUrl(e.target.value)} placeholder="YouTube or Instagram URL" style={input} />
+          <button disabled={!recallUrl || loading} onClick={() => run({ action_type: 'recall_ingest', command_value: recallUrl, danger_level: 'safe' })} style={pill}>INCORPORATE</button>
+        </Panel>
+        <Panel title="Custom command" badge="make own">
+          <textarea value={custom} onChange={e => setCustom(e.target.value)} placeholder="Describe/run your command..." style={{ ...input, minHeight: 92 }} />
+          <button disabled={!custom || loading} onClick={() => run({ action_type: 'custom_command', command_value: custom, danger_level: 'caution' })} style={pill}>RUN CUSTOM</button>
+        </Panel>
+        <Panel title="Output">{output ? <pre style={{ whiteSpace: 'pre-wrap', maxHeight: 260, overflow: 'auto', fontSize: 11 }}>{output}</pre> : <small>Pick task.</small>}</Panel>
+      </aside>
     </div>
-  );
+  </>;
 }
+
+function ActionButton({ b, active, setActive, run }: { b: Button; active: string | null; setActive: (x: string | null) => void; run: (x: Button) => void }) {
+  return <button onClick={() => { setActive(active === b.id ? null : b.id); if (b.action_type !== 'open_url') run(b); }} style={{ ...btn, borderColor: DANGER_COLOR[b.danger_level] || 'var(--line)' }}><b>{b.label}</b><small>{b.description}</small></button>;
+}
+function Panel({ title, badge, children }: { title: string; badge?: string; children: React.ReactNode }) { return <section style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 10, padding: 14 }}><div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}><h2 style={{ margin: 0, fontFamily: "'Barlow Condensed'", textTransform: 'uppercase' }}>{title}</h2>{badge && <small>{badge}</small>}</div>{children}</section>; }
+const row = { padding: 8, background: 'var(--bg)', borderLeft: '3px solid var(--line)', display: 'flex', flexDirection: 'column' as const, gap: 3 };
+const miniCard = { ...row, minHeight: 64 };
+const btn = { background: 'var(--bg)', color: 'var(--ink)', border: '2px solid var(--line)', borderRadius: 8, padding: 10, textAlign: 'left' as const, cursor: 'pointer', display: 'flex', flexDirection: 'column' as const, gap: 5 };
+const pill = { background: 'var(--accent)', color: 'var(--accent-ink)', border: '0', borderRadius: 999, padding: '9px 12px', fontWeight: 800, cursor: 'pointer' };
+const input = { width: '100%', background: 'var(--bg)', color: 'var(--ink)', border: '1px solid var(--line)', borderRadius: 8, padding: 10, marginBottom: 8 };

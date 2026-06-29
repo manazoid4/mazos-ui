@@ -5,13 +5,14 @@
 
 @custom-variant dark (&:is(.dark *));
 
-:root {
+:root, html[data-theme="dark"] {
   --bg: #0a0a0a;
   --paper: #141414;
-  --card: oklch(1 0 0);
+  --card: #141414;
   --ink: #f0ede6;
-  --muted: oklch(0.97 0 0);
-  --accent: oklch(0.97 0 0);
+  --muted: #9ca3af;
+  --accent: #e5e7eb;
+  --accent-ink: #0a0a0a;
   --green: #22c55e;
   --red: #ef4444;
   --line: #2a2a2a;
@@ -45,6 +46,22 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+}
+
+html[data-theme="light"] {
+  --bg: #f6f3ec;
+  --paper: #fffaf0;
+  --card: #ffffff;
+  --ink: #111827;
+  --muted: #4b5563;
+  --accent: #111827;
+  --accent-ink: #ffffff;
+  --green: #15803d;
+  --red: #dc2626;
+  --line: #d1d5db;
+  --yellow: #b45309;
+  --background: #f6f3ec;
+  --foreground: #111827;
 }
 
 * { box-sizing: border-box; }
