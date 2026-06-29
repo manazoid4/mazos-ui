@@ -1,0 +1,11 @@
+{
+  "id": "btn-import-ig",
+  "label": "Import IG Saves",
+  "description": "Upload Instagram Export or URLs to Recall",
+  "category": "Recall",
+  "danger_level": "safe",
+  "command_type": "skill",
+  "command_value": "import-instagram",
+  "hotkey": "I",
+  "pinned": true
+}

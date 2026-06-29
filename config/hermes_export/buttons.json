@@ -1,0 +1,90 @@
+[
+  {
+    "id": "btn-make-it-real",
+    "label": "Make It Real",
+    "description": "Turn a vague idea into a concrete task",
+    "category": "Meta",
+    "danger_level": "safe",
+    "command_type": "skill",
+    "command_value": "make-it-real",
+    "hotkey": "F13",
+    "pinned": true
+  },
+  {
+    "id": "btn-ship-next",
+    "label": "Ship Next",
+    "description": "Find one safe PR across priority repos",
+    "category": "Repo",
+    "danger_level": "safe",
+    "command_type": "skill",
+    "command_value": "ship-next",
+    "hotkey": "F14",
+    "pinned": true
+  },
+  {
+    "id": "btn-council-vote",
+    "label": "Council Vote",
+    "description": "Builder, Critic, and Revenue vote on the best approach",
+    "category": "Agent",
+    "danger_level": "safe",
+    "command_type": "skill",
+    "command_value": "council-mode",
+    "hotkey": "F15",
+    "pinned": true
+  },
+  {
+    "id": "btn-audit",
+    "label": "JobFilter Money Audit",
+    "description": "Find the highest ROI revenue task",
+    "category": "Revenue",
+    "danger_level": "safe",
+    "command_type": "skill",
+    "command_value": "mazos-control audit JobFilterV1",
+    "hotkey": "F16",
+    "pinned": true
+  },
+  {
+    "id": "btn-create-loop",
+    "label": "Create Loop",
+    "description": "Create a repeatable loop workflow",
+    "category": "Loops",
+    "danger_level": "safe",
+    "command_type": "skill",
+    "command_value": "loop-creator",
+    "hotkey": "F17",
+    "pinned": true
+  },
+  {
+    "id": "btn-panic",
+    "label": "PANIC",
+    "description": "Lock down all writes and destructive actions",
+    "category": "Safety",
+    "danger_level": "safe",
+    "command_type": "panic",
+    "command_value": "set github_write_actions=false, dangerous_actions_off=true, big_refactor_mode=false, swarm_mode=false, github_read_only=true",
+    "hotkey": "Esc",
+    "pinned": true
+  },
+  {
+    "id": "btn-import-ig",
+    "label": "Import IG Saves",
+    "description": "Upload Instagram Export or URLs to Recall",
+    "category": "Recall",
+    "danger_level": "safe",
+    "command_type": "skill",
+    "command_value": "import-instagram",
+    "hotkey": "I",
+    "pinned": true
+  },
+  {
+    "id": "btn-ig-mine",
+    "label": "IG Idea Miner",
+    "description": "Cluster and extract actions from saved IG posts",
+    "category": "Recall",
+    "danger_level": "safe",
+    "command_type": "skill",
+    "command_value": "mine-instagram",
+    "hotkey": "M",
+    "pinned": true
+  }
+]

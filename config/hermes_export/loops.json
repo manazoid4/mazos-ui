@@ -1,0 +1,90 @@
+{
+  "loops": [
+    {
+      "id": "jobfilter-money-loop",
+      "name": "JobFilter Money Loop",
+      "goal": "Move JobFilter closer to first paid user.",
+      "repo_scope": [
+        "JobFilterV1"
+      ],
+      "max_steps": 5,
+      "max_repeats": 3,
+      "danger_level": "caution",
+      "requires_confirmation": false,
+      "safety_requirements": [
+        "github_read_only unless explicitly changed",
+        "no massive rewrites",
+        "run safety gate before implementation",
+        "one PR lock"
+      ],
+      "steps": [
+        "Read active mission and toggles",
+        "Inspect repo context and recent notes",
+        "Find one high ROI revenue/conversion/trust issue",
+        "Generate one safe implementation prompt",
+        "Log decision and verification steps"
+      ],
+      "stop_conditions": [
+        "one clear task selected",
+        "risk is too high",
+        "requires secrets/payment/auth changes",
+        "loop repeats same recommendation twice",
+        "user confirmation required"
+      ],
+      "output_format": [
+        "chosen_repo",
+        "chosen_task",
+        "why_this_first",
+        "copy_ready_prompt",
+        "risk_level",
+        "danger_level",
+        "verification"
+      ]
+    },
+    {
+      "id": "instagram-recall-import-loop",
+      "name": "Instagram Saved Importer Loop",
+      "goal": "Import saved Instagram material into Recall safely, dedupe, enrich, cluster, and turn into boards/actions.",
+      "repo_scope": [
+        "recall"
+      ],
+      "max_steps": 9,
+      "max_repeats": 1,
+      "danger_level": "safe",
+      "requires_confirmation": true,
+      "safety_requirements": [
+        "no password/session scraping",
+        "do not bypass Instagram protections",
+        "do not scrape private content",
+        "owner-scoped persistence only",
+        "respect copyright"
+      ],
+      "steps": [
+        "Ask for import source: export ZIP, JSON, HTML, URLs, or extension capture.",
+        "Parse and preview. Dedupe against canonical_url.",
+        "Ask/select board and tags.",
+        "Commit owner-scoped sources.",
+        "Run AI enrichment (topics, entities, action suggestions).",
+        "Cluster by topic/project.",
+        "Generate one brief and one action list.",
+        "Log results."
+      ],
+      "stop_conditions": [
+        "file cannot be parsed",
+        "source requires unsafe scraping",
+        "auth missing",
+        "duplicate-only import",
+        "dangerous action detected"
+      ],
+      "output_format": [
+        "imported_count",
+        "skipped_count",
+        "failed_count",
+        "top_topics",
+        "suggested_boards",
+        "ai_brief",
+        "next_actions"
+      ]
+    }
+  ]
+}
