@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
 import * as yaml from 'js-yaml';
+import { actions } from '@/lib/mazos/commandRegistry';
 
 const last = (p: string) => {
   try { return fs.statSync(p).mtime.toISOString().slice(0, 16).replace('T', ' '); } catch { return 'never'; }
@@ -19,7 +20,7 @@ export async function GET() {
   }
 
   const control = readYaml('control-panel.yaml') as any || {};
-  const buttons = readJson('buttons.json') || [];
+  const buttons = actions();
   const plugins = [...names(path.join(hermes, 'skills'), 'skill'), ...names(path.join(hermes, 'plugins'), 'plugin')];
   const sessions = [
     { id: 'current', title: 'Current TUI Session', source: 'hermes', last_active: new Date().toISOString().slice(0, 16).replace('T', ' ') },
@@ -29,7 +30,7 @@ export async function GET() {
 
   return NextResponse.json({
     mission: control?.defaults?.active_mission || 'No mission set',
-    priority_repos: control?.defaults?.priority_repos || [],
+    priority_repos: control?.defaults?.priority_repos || {},
     toggles: control?.controls || {},
     buttons,
     plugins,

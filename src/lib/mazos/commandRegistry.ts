@@ -1,0 +1,61 @@
+import fs from 'fs';
+import path from 'path';
+import { PATHS, VAULT_INDEX, VAULT_SCAN_MD } from './paths';
+import { runCommand, promptResult } from './runCommand';
+import { scanRepos } from './repoScanner';
+
+export type Action = { id: string; label: string; description: string; category: string; enabled: boolean; disabledReason?: string; dangerLevel: 'safe'|'caution'|'danger'; handler: 'command'|'prompt'|'repo'|'vault'; expectedOutput: string; fallbackPrompt: string; command?: string; args?: string[]; cwd?: string; };
+const prompt = (x:string) => x;
+export function actions(): Action[] { return [
+  { id:'start_focus_sprint', label:'Start Focus Sprint', description:'Open focus mode.', category:'Execute', enabled:true, dangerLevel:'safe', handler:'prompt', expectedOutput:'Focus sprint prompt', fallbackPrompt:'Start a 45 minute focus sprint. Ask me for mission, success condition, blockers, then hold me accountable.' },
+  { id:'continue_important_task', label:'Continue Most Important Task', description:'Generate next-action prompt.', category:'Execute', enabled:true, dangerLevel:'safe', handler:'prompt', expectedOutput:'Next task prompt', fallbackPrompt:'Review current repo status and session history. Pick the single highest-leverage unfinished task for Recall/JobFilter/MazOS. Give exact next 3 actions.' },
+  { id:'scan_last_5_sessions', label:'Scan Last 5 Sessions', description:'Manual Hermes session scan prompt.', category:'Execute', enabled:true, dangerLevel:'safe', handler:'prompt', expectedOutput:'Copy-paste prompt', fallbackPrompt:'Scan my last 5 Hermes sessions. Extract unfinished work, decisions, blockers, files changed, next actions. Do not invent missing data.' },
+  { id:'write_session_handoff', label:'Write Session Handoff', description:'Create handoff prompt.', category:'Execute', enabled:true, dangerLevel:'safe', handler:'prompt', expectedOutput:'Handoff prompt', fallbackPrompt:'Write a concise session handoff: mission, completed, changed files, test output, blockers, next 5 actions.' },
+  { id:'repo_health_scan', label:'Repo Health Scan', description:'Scan configured repos.', category:'Repos', enabled:true, dangerLevel:'safe', handler:'repo', expectedOutput:'Repo JSON summary', fallbackPrompt:'Run a repo health scan for MazOS, Recall, JobFilter, OpenFlowKit, Obsidian.' },
+  { id:'build_all_safe_repos', label:'Build All Safe Repos', description:'Manual build prompt; avoids surprise long runs.', category:'Repos', enabled:true, dangerLevel:'safe', handler:'prompt', expectedOutput:'Build checklist', fallbackPrompt:'For each existing repo with package.json build script, run build one repo at a time. Stop on failure. Report exact output.' },
+  { id:'find_dirty_repos', label:'Find Dirty Repos', description:'git status for MazOS.', category:'Repos', enabled:true, dangerLevel:'safe', handler:'command', cwd:PATHS.mazos_ui, command:'git', args:['status','--short'], expectedOutput:'Git status', fallbackPrompt:'Find dirty repos and summarize changed files.' },
+  { id:'find_unpushed_work', label:'Find Unpushed Work', description:'git unpushed for MazOS.', category:'Repos', enabled:true, dangerLevel:'safe', handler:'command', cwd:PATHS.mazos_ui, command:'git', args:['log','@{u}..','--oneline'], expectedOutput:'Unpushed commits', fallbackPrompt:'Find unpushed commits in priority repos.' },
+  { id:'github_update_report', label:'Generate GitHub Update Report', description:'Status only; no push.', category:'Repos', enabled:true, dangerLevel:'safe', handler:'prompt', expectedOutput:'Copy-paste report prompt', fallbackPrompt:'Generate GitHub update report. Include repo status, branch, remotes, build/lint output. Do not push unless explicitly told.' },
+  { id:'process_ingest_queue', label:'Process Ingest Queue', description:'Manual queue processing prompt.', category:'Recall', enabled:true, dangerLevel:'safe', handler:'prompt', expectedOutput:'Queue prompt', fallbackPrompt:'Read data/mazos/ingest-queue.jsonl. Process queued URLs into Recall/Obsidian. Preserve tags/notes/source. Report failures.' },
+  { id:'audit_recall_gaps', label:'Audit Recall Gaps', description:'Recall product prompt.', category:'Recall', enabled:true, dangerLevel:'safe', handler:'prompt', expectedOutput:'Recall audit prompt', fallbackPrompt:'Audit Recall ingest gaps: supported source types, transcript extraction, queue processing, vault writing, dedupe. Return smallest useful fixes.' },
+  { id:'build_recall', label:'Build Recall', description:'npm run build in Recall.', category:'Recall', enabled:fs.existsSync(PATHS.recall), disabledReason:fs.existsSync(PATHS.recall)?undefined:'Recall repo missing', dangerLevel:'safe', handler:'command', cwd:PATHS.recall, command:'npm', args:['run','build'], expectedOutput:'Build output', fallbackPrompt:'Build Recall and fix compile errors.' },
+  { id:'recall_product_brief', label:'Generate Recall Product Brief', description:'Manual prompt.', category:'Recall', enabled:true, dangerLevel:'safe', handler:'prompt', expectedOutput:'Product brief prompt', fallbackPrompt:'Generate a Recall product brief: target user, pain, core workflow, ingest roadmap, next 5 ship tasks.' },
+  { id:'jobfilter_build', label:'JobFilter Build Check', description:'npm run build in JobFilter.', category:'JobFilter', enabled:fs.existsSync(PATHS.jobfilter), disabledReason:fs.existsSync(PATHS.jobfilter)?undefined:'JobFilter repo missing', dangerLevel:'safe', handler:'command', cwd:PATHS.jobfilter, command:'npm', args:['run','build'], expectedOutput:'Build output', fallbackPrompt:'Build JobFilter and report exact failures.' },
+  { id:'research_competitors', label:'Research Competitors', description:'Manual market prompt.', category:'JobFilter', enabled:true, dangerLevel:'safe', handler:'prompt', expectedOutput:'Competitor prompt', fallbackPrompt:'Research UK trades lead-gen competitors. Compare offer, price, trust proof, funnel, weaknesses. Create JobFilter moves.' },
+  { id:'lead_pipeline_scan_prompt', label:'Lead Pipeline Scan Prompt', description:'Manual scan prompt.', category:'JobFilter', enabled:true, dangerLevel:'safe', handler:'prompt', expectedOutput:'Pipeline prompt', fallbackPrompt:'Scan JobFilter lead pipeline. Find broken routes, weak trust points, missing follow-up, next money tasks.' },
+  { id:'sales_page_improvements', label:'Generate Sales Page Improvements', description:'Copy prompt.', category:'JobFilter', enabled:true, dangerLevel:'safe', handler:'prompt', expectedOutput:'Sales prompt', fallbackPrompt:'Improve JobFilter sales page with doctrine tone: CONTROL THE JOBS, NO CHASING, REAL LEADS, BUILT FOR TRADES. Output exact copy changes.' },
+  { id:'next_5_money_tasks', label:'Create Next 5 Money Tasks', description:'Money task prompt.', category:'JobFilter', enabled:true, dangerLevel:'safe', handler:'prompt', expectedOutput:'Task prompt', fallbackPrompt:'Create next 5 money tasks for JobFilter. Prioritise conversion, lead quality, trust, outreach. No fluff.' },
+  { id:'vault_index', label:'Vault Index', description:'Lightweight vault scan.', category:'Obsidian', enabled:fs.existsSync(PATHS.obsidian), disabledReason:fs.existsSync(PATHS.obsidian)?undefined:'Vault missing', dangerLevel:'safe', handler:'vault', expectedOutput:'vault-index.json + latest-vault-scan.md', fallbackPrompt:'Scan vault lightly; do not load entire vault.' },
+  { id:'intent_map_refresh', label:'Intent Map Refresh', description:'Manual prompt.', category:'Obsidian', enabled:true, dangerLevel:'safe', handler:'prompt', expectedOutput:'Intent prompt', fallbackPrompt:'Refresh Maz intent map from vault indexes and recent notes. Keep it short. Link sources.' },
+  { id:'extract_decisions', label:'Extract Decisions', description:'Manual prompt.', category:'Obsidian', enabled:true, dangerLevel:'safe', handler:'prompt', expectedOutput:'Decision prompt', fallbackPrompt:'Extract durable decisions from latest vault/session notes. Append dated bullets only.' },
+  { id:'extract_tasks', label:'Extract Tasks', description:'Manual prompt.', category:'Obsidian', enabled:true, dangerLevel:'safe', handler:'prompt', expectedOutput:'Task prompt', fallbackPrompt:'Extract active tasks from latest vault/session notes. Separate now/next/later.' },
+  { id:'write_daily_review', label:'Write Daily Review', description:'Manual prompt.', category:'Obsidian', enabled:true, dangerLevel:'safe', handler:'prompt', expectedOutput:'Review prompt', fallbackPrompt:'Write daily review: shipped, learned, blocked, tomorrow top 3. Use short bullets.' },
+  { id:'health_check', label:'Health Check', description:'Service status.', category:'System', enabled:true, dangerLevel:'safe', handler:'prompt', expectedOutput:'Health prompt', fallbackPrompt:'Check MazOS/Recall/JobFilter service health and summarize what is offline.' },
+  { id:'open_config', label:'Open Config', description:'Show config path.', category:'System', enabled:true, dangerLevel:'safe', handler:'prompt', expectedOutput:'Config path', fallbackPrompt:'Open config/control-panel.yaml in editor and verify ports/paths/toggles.' },
+  { id:'view_logs', label:'View Logs', description:'Read recent run logs.', category:'System', enabled:true, dangerLevel:'safe', handler:'prompt', expectedOutput:'Log path', fallbackPrompt:'Review data/mazos/runs latest JSONL. Find failures and next fixes.' },
+  { id:'fix_broken_buttons', label:'Fix Broken Buttons', description:'Prompt for repair.', category:'System', enabled:true, dangerLevel:'safe', handler:'prompt', expectedOutput:'Fix prompt', fallbackPrompt:'Audit MazOS buttons. Every button must work, be disabled with reason, or generate manual prompt. Fix smallest set.' },
+  { id:'generate_mazos_report', label:'Generate MazOS Report', description:'Report prompt.', category:'System', enabled:true, dangerLevel:'safe', handler:'prompt', expectedOutput:'Report prompt', fallbackPrompt:'Generate MAZOS_REBUILD_REPORT.md with changed files, tests, local URLs, remaining gaps.' },
+];}
+
+export async function runAction(id: string) {
+  const action = actions().find(a => a.id === id);
+  if (!action) return promptResult(id, 'Unknown action', `Unknown action: ${id}`);
+  if (!action.enabled) return promptResult(id, action.label, `Disabled: ${action.disabledReason || 'not available'}\n\nFallback:\n${action.fallbackPrompt}`);
+  if (action.handler === 'command') return runCommand({ actionId: action.id, label: action.label, cwd: action.cwd!, command: action.command!, args: action.args || [], nextSuggestedAction: action.fallbackPrompt });
+  if (action.handler === 'repo') return promptResult(action.id, action.label, JSON.stringify(scanRepos(), null, 2));
+  if (action.handler === 'vault') return scanVault(action);
+  return promptResult(action.id, action.label, action.fallbackPrompt);
+}
+
+function scanVault(action: Action) {
+  const files: any[] = [];
+  const walk = (dir: string) => { for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
+    const p = path.join(dir, ent.name); if (ent.isDirectory() && files.length < 200) walk(p); else if (ent.isFile() && ent.name.endsWith('.md')) files.push({ path: p, mtime: fs.statSync(p).mtime.toISOString(), size: fs.statSync(p).size });
+  }};
+  if (fs.existsSync(PATHS.obsidian)) walk(PATHS.obsidian);
+  files.sort((a,b)=>b.mtime.localeCompare(a.mtime));
+  fs.mkdirSync(path.dirname(VAULT_INDEX), { recursive: true }); fs.mkdirSync(path.dirname(VAULT_SCAN_MD), { recursive: true });
+  fs.writeFileSync(VAULT_INDEX, JSON.stringify({ scannedAt: new Date().toISOString(), root: PATHS.obsidian, count: files.length, latest: files.slice(0,25) }, null, 2));
+  fs.writeFileSync(VAULT_SCAN_MD, `# Latest Vault Scan\n\nScanned: ${new Date().toISOString()}\n\nFiles indexed: ${files.length}\n\n` + files.slice(0,25).map(f=>`- ${f.mtime} — ${f.path}`).join('\n'));
+  return promptResult(action.id, action.label, `Wrote:\n- ${VAULT_INDEX}\n- ${VAULT_SCAN_MD}\n\nLatest files:\n${files.slice(0,10).map(f=>f.path).join('\n') || 'No markdown files found.'}`);
+}

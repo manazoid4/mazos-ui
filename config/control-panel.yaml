@@ -1,20 +1,37 @@
-budget: "1000"
-danger_mode: "disabled"
-challenges: "strict"
 defaults:
-  active_mission: "MazOS Local Cockpit Completion"
+  active_mission: "Build useful MazOS cockpit that helps Maz ship Recall, JobFilter and OpenFlowKit"
   priority_repos:
-    - "C:/Users/manaz/Projects/mazos-ui"
-    - "C:/Users/manaz/Desktop/JobFilterV1"
+    mazos_ui: "C:/Users/manaz/Projects/mazos-ui"
+    recall: "C:/Users/manaz/Projects/recall"
+    jobfilter: "C:/Users/manaz/Desktop/JobFilterV1"
+    openflowkit: "C:/Users/manaz/Projects/openflowkit"
+  vaults:
+    main: "C:/Users/manaz/Desktop/Obsidian Main Vault"
+    jobfilter: "C:/Users/manaz/JobFilter-Obsidian-Vault"
 
-environment:
-  EMAIL_PROVIDER: "resend"
-  EMAIL_FROM: "onboarding@resend.dev"
-  NOTIFY_EMAIL: "manazoid4@gmail.com"
-  
+services:
+  mazos:
+    url: "http://localhost:3046"
+  recall:
+    url: "http://localhost:3029"
+  jobfilter:
+    url: "http://localhost:3000"
+
+email:
+  provider: "resend"
+  from: "onboarding@resend.dev"
+  to: "manazoid4@gmail.com"
+  enabled: false
+
+safety:
+  safe_mode: true
+  allow_shell: false
+  allow_push: false
+  allow_destructive: false
+
 controls:
-  automation_enabled: true
-  weekly_digest_enabled: true
+  recall_ingest_enabled: true
   repo_scan_enabled: true
   vault_scan_enabled: true
   focus_sessions_enabled: true
+  weekly_digest_enabled: false

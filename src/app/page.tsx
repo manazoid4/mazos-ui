@@ -2,109 +2,38 @@
 
 import { useEffect, useMemo, useState } from 'react';
 
-type ActionType = 'scan_vault' | 'email_digest' | 'run_safe_prompt' | 'open_url' | 'agent_task' | 'recall_ingest' | 'custom_command';
-type Button = { id: string; label: string; description: string; category: string; danger_level: string; command_value: string; action_type: ActionType; hotkey?: string };
-type Agent = { id: string; name: string; description: string; tools: string[]; model: string };
-type Plugin = { name: string; kind: string; enabled: boolean; last_used: string };
-type Session = { id: string; title: string; source: string; last_active: string };
-type Data = { mission: string; priority_repos: string[]; toggles: Record<string, boolean>; buttons: Button[]; agents: Agent[]; plugins?: Plugin[]; sessions?: Session[] };
-
-const DANGER_COLOR: Record<string, string> = { safe: 'var(--green)', caution: 'var(--yellow)', danger: 'var(--red)' };
-const TASKS: Button[] = [
-  { id: 'last5', label: 'Scan last 5', description: 'Find unfinished/unpushed work', category: 'Agent Tasks', danger_level: 'safe', command_value: 'scan_last_5_sessions', action_type: 'agent_task' },
-  { id: 'recall', label: 'Improve Recall', description: 'Audit Recall ingest gaps', category: 'Agent Tasks', danger_level: 'safe', command_value: 'improve_recall', action_type: 'agent_task' },
-  { id: 'vault', label: 'Vault index', description: 'Refresh Obsidian memory index', category: 'Agent Tasks', danger_level: 'safe', command_value: 'refresh_vault_index', action_type: 'agent_task' },
-  { id: 'unpushed', label: 'Git check', description: 'Find uncommitted/unpushed repos', category: 'Agent Tasks', danger_level: 'safe', command_value: 'git_unpushed_scan', action_type: 'agent_task' },
-  { id: 'market', label: 'Market scan', description: 'Create lightweight market-research brief', category: 'Agent Tasks', danger_level: 'safe', command_value: 'market_research_brief', action_type: 'agent_task' },
-  { id: 'digest', label: 'Email digest', description: 'Send session HTML digest', category: 'Agent Tasks', danger_level: 'caution', command_value: 'email_digest', action_type: 'email_digest' },
-  { id: 'update-github', label: 'Update GitHub', description: 'Status/build/push + show direct URLs', category: 'Agent Tasks', danger_level: 'caution', command_value: 'update_github_repos', action_type: 'agent_task' },
-  { id: 'obsidian-immersion', label: 'Obsidian immersion', description: 'Plan vault/tone/prompt immersion', category: 'Agent Tasks', danger_level: 'safe', command_value: 'obsidian_immersion_plan', action_type: 'agent_task' },
-];
+type Repo = { id:string; label:string; path:string; exists:boolean; branch:string; dirty:boolean; unpushedCount:number; lastModified:string|null; packageManager:string; scripts:Record<string,string>; buildScript:boolean; lintScript:boolean; github:string };
+type Action = { id:string; label:string; description:string; category:string; enabled:boolean; disabledReason?:string; dangerLevel:string; expectedOutput:string; fallbackPrompt:string };
+type Run = { success:boolean; actionId:string; label:string; cwd:string; commandPreview:string; stdout:string; stderr:string; exitCode:number|null; startedAt:string; finishedAt:string; durationMs:number; nextSuggestedAction:string };
+type Health = { id:string; label:string; kind:string; url?:string; path?:string; online:boolean; status:number|string; latencyMs:number; signal:string; meaning:string };
+type Vault = { doctrine:string[]; projectSignals:{name:string;mentions:number}[]; prompts:{source:string;text:string}[]; keyDocs:{source:string;title:string;bullets:string[]}[]; cockpitPanels:string[]; filesSeen:number };
+type Data = { mission:string; buttons:Action[]; repos:Repo[]; services:Health[]; runs:Run[]; vault:string };
+const cats = ['Execute','Repos','Recall','JobFilter','Obsidian','System'];
 
 export default function Page() {
-  const [data, setData] = useState<Data | null>(null);
-  const [output, setOutput] = useState('');
-  const [active, setActive] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
-  const [custom, setCustom] = useState('');
-  const [recallUrl, setRecallUrl] = useState('');
-
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-    Promise.all([
-      fetch('/api/mazos').then(r => r.json()),
-      fetch('/api/mazos/agents').then(r => r.json()).catch(() => ({ agents: [] }))
-    ]).then(([mainData, agentsData]) => setData({ ...mainData, agents: agentsData.agents || [] }));
-  }, [theme]);
-
-  const buttons = useMemo(() => [...(data?.buttons || []), ...TASKS], [data]);
-  const grouped = buttons.reduce<Record<string, Button[]>>((acc, b) => ((acc[b.category] ??= []).push(b), acc), {});
-
-  async function run(payload: Partial<Button> & Record<string, unknown>) {
-    setLoading(true); setOutput('Executing...');
-    try {
-      const res = await fetch('/api/mazos/action', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-      const json = await res.json();
-      setOutput(json.output || JSON.stringify(json, null, 2));
-    } catch (e: any) { setOutput(`ERROR: ${e.message}`); }
-    setLoading(false);
-  }
-
-  if (!data) return <div style={{ fontFamily: 'monospace', color: 'var(--accent)' }}>LOADING MAZ_OS...</div>;
-
-  return <>
-    <header style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 16, borderBottom: '3px solid var(--line)', paddingBottom: 12, marginBottom: 18 }}>
-      <div><h1 style={{ fontFamily: "'Barlow Condensed'", fontSize: 38, fontWeight: 900, textTransform: 'uppercase', margin: 0 }}>MAZ_OS // AgentOS</h1><small>Mission: {data.mission}</small></div>
-      <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} style={pill}>{theme === 'dark' ? 'LIGHT' : 'DARK'} MODE</button>
-    </header>
-
-    <Panel title="Current Sessions" badge={`${data.sessions?.length || 0} live/recent`}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 8 }}>
-        {(data.sessions || []).map(s => <div key={s.id} style={miniCard}><b>{s.title}</b><small>{s.id} · {s.source} · {s.last_active}</small></div>)}
-      </div>
-    </Panel>
-
-    <div style={{ display: 'grid', gridTemplateColumns: '260px 1fr 300px', gap: 18, marginTop: 18 }}>
-      <aside style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <Panel title="Enabled Plugins + Skills" badge="last use">
-          {(data.plugins || []).map(p => <div key={p.kind + p.name} style={row}><span>{p.enabled ? '●' : '○'} {p.name}</span><small>{p.kind} · {p.last_used}</small></div>)}
-        </Panel>
-        <Panel title="Repos">{data.priority_repos.map((r, i) => <div key={r} style={row}>{i + 1}. {r}</div>)}</Panel>
-      </aside>
-
-      <main style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <Panel title="Agent Tasks — Run Now" badge="safe cmds">
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: 8 }}>
-            {TASKS.map(b => <ActionButton key={b.id} b={b} active={active} setActive={setActive} run={run} />)}
-          </div>
-        </Panel>
-        {Object.entries(grouped).filter(([cat]) => cat !== 'Agent Tasks').map(([cat, btns]) => <Panel key={cat} title={cat}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: 8 }}>{btns.map(b => <ActionButton key={b.id} b={b} active={active} setActive={setActive} run={run} />)}</div>
-        </Panel>)}
-      </main>
-
-      <aside style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <Panel title="Recall ingest" badge="yt/ig">
-          <input value={recallUrl} onChange={e => setRecallUrl(e.target.value)} placeholder="YouTube or Instagram URL" style={input} />
-          <button disabled={!recallUrl || loading} onClick={() => run({ action_type: 'recall_ingest', command_value: recallUrl, danger_level: 'safe' })} style={pill}>INCORPORATE</button>
-        </Panel>
-        <Panel title="Custom command" badge="make own">
-          <textarea value={custom} onChange={e => setCustom(e.target.value)} placeholder="Describe/run your command..." style={{ ...input, minHeight: 92 }} />
-          <button disabled={!custom || loading} onClick={() => run({ action_type: 'custom_command', command_value: custom, danger_level: 'caution' })} style={pill}>RUN CUSTOM</button>
-        </Panel>
-        <Panel title="Output">{output ? <pre style={{ whiteSpace: 'pre-wrap', maxHeight: 260, overflow: 'auto', fontSize: 11 }}>{output}</pre> : <small>Pick task.</small>}</Panel>
-      </aside>
-    </div>
-  </>;
+  const [data,setData]=useState<Data|null>(null), [vault,setVault]=useState<Vault|null>(null), [run,setRun]=useState<Run|null>(null), [busy,setBusy]=useState(''), [modal,setModal]=useState<{title:string;body:any}|null>(null);
+  const [ingest,setIngest]=useState({ urls:'', sourceType:'auto', target:'Recall', tags:'', notes:'' }); const [files,setFiles]=useState<FileList|null>(null); const [clock,setClock]=useState('');
+  async function refresh(){ const [main,repos,health,runs]=await Promise.all([fetch('/api/mazos').then(r=>r.json()),fetch('/api/mazos/repos').then(r=>r.json()),fetch('/api/mazos/health').then(r=>r.json()),fetch('/api/mazos/runs?limit=8').then(r=>r.json())]); setData({...main, repos:repos.repos, services:health.services, runs:runs.runs, buttons:main.buttons||[]}); }
+  async function loadVault(){ const v=await fetch('/api/mazos/vault').then(r=>r.json()); setVault(v); return v; }
+  useEffect(()=>{ document.documentElement.dataset.theme='dark'; refresh(); loadVault(); const t=setInterval(()=>setClock(new Date().toLocaleTimeString()),1000); return()=>clearInterval(t); },[]);
+  const summary=useMemo(()=> data ? { existing:data.repos.filter(r=>r.exists).length, dirty:data.repos.filter(r=>r.dirty).length, optionalDown:data.services.filter(s=>!s.online&&s.signal==='not-running').length, critical:data.services.filter(s=>!s.online&&s.signal!=='not-running').length } : null,[data]);
+  async function runAction(id:string){ setBusy(id); const r=await fetch('/api/mazos/action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})}).then(r=>r.json()); setRun(r); setBusy(''); setModal({title:r.label, body:<Result r={r}/>}); refresh(); }
+  async function doIngest(){ setBusy('ingest'); const fd=new FormData(); Object.entries(ingest).forEach(([k,v])=>fd.append(k,v)); Array.from(files||[]).forEach(f=>fd.append('files',f)); const r=await fetch('/api/mazos/ingest',{method:'POST',body:fd}).then(r=>r.json()); const now=new Date().toISOString(); const rr={success:!!r.success,actionId:'ingest_urls',label:'Ingest Intake',cwd:'api',commandPreview:'POST /api/mazos/ingest',stdout:JSON.stringify(r,null,2),stderr:r.error||'',exitCode:r.success?0:1,startedAt:now,finishedAt:now,durationMs:0,nextSuggestedAction:r.queued?'Open Intake Queue and process queued sources.':'Review routed sources in Recall.'}; setRun(rr); setBusy(''); setModal({title:'Intake Result',body:<Result r={rr}/>}); refresh(); }
+  if(!data||!summary) return <main className="shell"><div className="boot">MAZ_OS :: BOOTING COCKPIT…</div></main>;
+  const byCat=Object.fromEntries(cats.map(c=>[c,data.buttons.filter(b=>b.category===c)])); const last=run||data.runs?.[0];
+  return <main className="shell"><div className="gridGlow" />
+    <header className="topbar"><div><p className="eyebrow">JARVIS-LITE LOCAL OPS</p><h1>MAZOS COCKPIT</h1><p className="mission">{data.mission}</p></div><div className="topStats"><b>{clock}</b><span>{summary.existing}/{data.repos.length} repos</span><span>{summary.dirty} dirty</span><span>{summary.optionalDown} optional off</span><span>{summary.critical} critical</span></div></header>
+    <section className="hero"><Panel title="Next Best Move" badge="vault-aware"><div className="recommend">{summary.dirty?'Stabilise dirty work → then ship.':summary.critical?'Fix critical cockpit signals.':'Capture sources, route queue, ship one money task.'}</div><p className="muted">Vault signals: {vault?.projectSignals.slice(0,4).map(x=>`${x.name} ${x.mentions}`).join(' · ')||'loading…'}</p></Panel><Panel title="Ops Radar" badge="local + cloud"><div className="radar">{data.services.map(s=><button key={s.id} onClick={()=>setModal({title:s.label,body:<ServiceDetail s={s}/>})} className={`orb ${s.online?'on':'off'} ${s.signal==='not-running'?'idle':''}`}><b>{s.label}</b><span>{s.online?`${s.status} · ${s.latencyMs}ms`:s.signal}</span><small>{s.url||s.path}</small></button>)}</div></Panel></section>
+    <section className="triad"><Panel title="Today's Execution" badge="3 moves"><ActionButton label="Start Focus Sprint" onClick={()=>location.href='/focus'}/><ActionButton label="Scan Last 5 Sessions" onClick={()=>runAction('scan_last_5_sessions')}/><ActionButton label="Continue Most Important Work" onClick={()=>runAction('continue_important_task')}/></Panel><Panel title="Source Intake" badge="youtube · instagram · x · pdf"><textarea className="input big" rows={5} placeholder="Paste YouTube / Instagram / X / web URLs — one per line" value={ingest.urls} onChange={e=>setIngest({...ingest,urls:e.target.value})}/><div className="cols"><select className="input" value={ingest.sourceType} onChange={e=>setIngest({...ingest,sourceType:e.target.value})}>{['auto','youtube','instagram','x','pdf','webpage'].map(x=><option key={x}>{x}</option>)}</select><select className="input" value={ingest.target} onChange={e=>setIngest({...ingest,target:e.target.value})}>{['Recall','Obsidian','JobFilter research'].map(x=><option key={x}>{x}</option>)}</select></div><label className="drop"><input type="file" multiple accept=".pdf,.txt,.md" onChange={e=>setFiles(e.target.files)}/><span>{files?.length?`${files.length} file(s) staged`:'Drop PDFs / notes here'}</span></label><input className="input" placeholder="tags e.g. recall market youtube" value={ingest.tags} onChange={e=>setIngest({...ingest,tags:e.target.value})}/><textarea className="input" rows={2} placeholder="why this matters / extraction goal" value={ingest.notes} onChange={e=>setIngest({...ingest,notes:e.target.value})}/><button className="primary hot" disabled={(!ingest.urls&&!files?.length)||!!busy} onClick={doIngest}>{busy==='ingest'?'ROUTING…':'ROUTE / QUEUE SOURCES'}</button></Panel><Panel title="Vault Intelligence" badge={`${vault?.filesSeen||0} notes`}><div className="intel">{(vault?.doctrine||[]).slice(0,4).map(x=><button key={x} onClick={()=>setModal({title:'Vault Doctrine',body:x})}>{x}</button>)}</div><button className="ghost wide" onClick={()=>setModal({title:'Useful Prompts',body:<PromptList vault={vault}/>})}>Open Prompt Library Summary</button><button className="ghost wide" onClick={()=>loadVault().then(v=>setModal({title:'Vault Scan Complete',body:<PromptList vault={v}/>}))}>Rescan Vault Intel</button></Panel></section>
+    <Panel title="Repo Command Centre" badge="summaries over logs"><div className="repos">{data.repos.map(r=><RepoCard key={r.id} repo={r} run={runAction} open={(m)=>setModal(m)}/>)}</div></Panel>
+    <section className="split"><Panel title="Action Matrix" badge="click → summary modal">{cats.map(c=><div key={c} className="actionBlock"><h3>{c}</h3><div className="chips">{(byCat[c] as Action[]).map(a=><ActionLine key={a.id} a={a} run={runAction} busy={busy}/>)}</div></div>)}</Panel><Panel title="Last Signal" badge={busy?'running':'summary'}>{last?<Result r={last}/>:<p className="muted">No runs yet.</p>}<h3>History</h3>{data.runs?.slice(0,8).map((r,i)=><button className="history" key={i} onClick={()=>setModal({title:r.label,body:<Result r={r}/>})}><span>{r.success?'✓':'✗'} {r.label}</span><small>{new Date(r.finishedAt).toLocaleTimeString()}</small></button>)}</Panel></section>
+    {modal&&<div className="overlay" onClick={()=>setModal(null)}><section className="modal" onClick={e=>e.stopPropagation()}><div className="panelHead"><h2>{modal.title}</h2><button className="ghost" onClick={()=>setModal(null)}>close</button></div><div>{modal.body}</div></section></div>}
+  </main>;
 }
-
-function ActionButton({ b, active, setActive, run }: { b: Button; active: string | null; setActive: (x: string | null) => void; run: (x: Button) => void }) {
-  return <button onClick={() => { setActive(active === b.id ? null : b.id); if (b.action_type !== 'open_url') run(b); }} style={{ ...btn, borderColor: DANGER_COLOR[b.danger_level] || 'var(--line)' }}><b>{b.label}</b><small>{b.description}</small></button>;
-}
-function Panel({ title, badge, children }: { title: string; badge?: string; children: React.ReactNode }) { return <section style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 10, padding: 14 }}><div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}><h2 style={{ margin: 0, fontFamily: "'Barlow Condensed'", textTransform: 'uppercase' }}>{title}</h2>{badge && <small>{badge}</small>}</div>{children}</section>; }
-const row = { padding: 8, background: 'var(--bg)', borderLeft: '3px solid var(--line)', display: 'flex', flexDirection: 'column' as const, gap: 3 };
-const miniCard = { ...row, minHeight: 64 };
-const btn = { background: 'var(--bg)', color: 'var(--ink)', border: '2px solid var(--line)', borderRadius: 8, padding: 10, textAlign: 'left' as const, cursor: 'pointer', display: 'flex', flexDirection: 'column' as const, gap: 5 };
-const pill = { background: 'var(--accent)', color: 'var(--accent-ink)', border: '0', borderRadius: 999, padding: '9px 12px', fontWeight: 800, cursor: 'pointer' };
-const input = { width: '100%', background: 'var(--bg)', color: 'var(--ink)', border: '1px solid var(--line)', borderRadius: 8, padding: 10, marginBottom: 8 };
+function ActionButton(p:{label:string;onClick:()=>void}){return <button className="primary" onClick={p.onClick}>{p.label}</button>}
+function RepoCard({repo,run,open}:{repo:Repo;run:(id:string)=>void;open:(m:any)=>void}){ const fix=`Fix ${repo.label}. Path: ${repo.path}. Inspect first. Run safe status/build/lint only. No destructive commands. Return summary not raw logs.`; return <article className={`repo ${repo.exists?'':'missing'}`}><div className="repoTop"><h3>{repo.label}</h3><span className={repo.dirty?'bad':'ok'}>{repo.exists?(repo.dirty?'dirty':'clean'):'missing'}</span></div><small>{repo.path}</small><dl><dt>branch</dt><dd>{repo.branch}</dd><dt>unpushed</dt><dd>{repo.unpushedCount}</dd><dt>pkg</dt><dd>{repo.packageManager}</dd><dt>scripts</dt><dd>{Object.keys(repo.scripts||{}).slice(0,5).join(', ')||'none'}</dd></dl><div className="chips"><button className="ghost" onClick={()=>run('repo_health_scan')}>Scan</button>{repo.buildScript&&<button className="ghost" onClick={()=>repo.id==='recall'?run('build_recall'):repo.id==='jobfilter'?run('jobfilter_build'):navigator.clipboard.writeText(`cd ${repo.path} && npm run build`)}>Build</button>}{repo.lintScript&&<button className="ghost" onClick={()=>navigator.clipboard.writeText(`cd ${repo.path} && npm run lint`)}>Lint</button>}{repo.github&&<button className="ghost" onClick={()=>open({title:`${repo.label} GitHub`,body:repo.github})}>GitHub</button>}<button className="ghost" onClick={()=>open({title:`${repo.label} Fix Prompt`,body:fix})}>Fix Prompt</button></div></article> }
+function ActionLine({a,run,busy}:{a?:Action;run:(id:string)=>void;busy:string}){ if(!a)return null; return <button title={a.disabledReason||a.expectedOutput} disabled={!a.enabled||!!busy} onClick={()=>run(a.id)} className="ghost action"><b>{busy===a.id?'… ':''}{a.label}</b><small>{a.enabled?a.description:a.disabledReason}</small></button> }
+function Result({r}:{r:Run}){ const lines=(r.stdout||r.stderr||'').split('\n').filter(Boolean).slice(0,10); return <div><div className="consoleHead"><b>{r.label}</b><span className={r.success?'ok':'bad'}>{r.success?'OK':'FAIL'}</span></div><p className="muted">{r.commandPreview} · {r.durationMs}ms</p><ul className="summaryList">{lines.map((l,i)=><li key={i}>{l.slice(0,220)}</li>)}</ul><details><summary>raw output</summary><pre>{r.stdout||r.stderr}</pre></details><p className="muted">Next: {r.nextSuggestedAction}</p></div>}
+function ServiceDetail({s}:{s:Health}){return <div><p>{s.meaning}</p><dl><dt>kind</dt><dd>{s.kind}</dd><dt>signal</dt><dd>{s.signal}</dd><dt>endpoint</dt><dd>{s.url||s.path}</dd><dt>latency</dt><dd>{s.latencyMs}ms</dd></dl></div>}
+function PromptList({vault}:{vault:Vault|null}){return <div><h3>Doctrine</h3><ul className="summaryList">{vault?.doctrine.map(x=><li key={x}>{x}</li>)}</ul><h3>Prompts</h3><ul className="summaryList">{vault?.prompts.slice(0,16).map((p,i)=><li key={i}><b>{p.source}</b> — {p.text}</li>)}</ul></div>}
+function Panel({title,badge,children}:{title:string;badge?:string;children:any}){return <section className="panel"><div className="panelHead"><h2>{title}</h2>{badge&&<small>{badge}</small>}</div>{children}</section>}
