@@ -18,8 +18,10 @@ export type ProjectStatus = {
   missing: string[];
   latestCommits: string[];
   gitStatus: string[];
+  dirtyGroups: Record<'app' | 'generated' | 'submodule' | 'docs' | 'unknown', string[]>;
   currentEntries: string[];
   loopState: string[];
+  warnings: string[];
   blocker: string;
   nextBestAction: string;
   evidencePathsRead: string[];
@@ -39,7 +41,7 @@ const KNOWN_REPOS: Record<string, string[]> = {
 };
 
 function readMaybe(filePath: string) {
-  return fs.existsSync(filePath) ? fs.readFileSync(filePath, 'utf8') : '';
+  return fs.existsSync(/* turbopackIgnore: true */ filePath) ? fs.readFileSync(/* turbopackIgnore: true */ filePath, 'utf8') : '';
 }
 
 function norm(value: string) {
@@ -74,7 +76,7 @@ function projectRefsFromVault(): ProjectRef[] {
     }
   }
 
-  if (fs.existsSync(PROJECTS_ROOT)) {
+  if (fs.existsSync(/* turbopackIgnore: true */ PROJECTS_ROOT)) {
     for (const entry of fs.readdirSync(PROJECTS_ROOT, { withFileTypes: true })) {
       if (!entry.isDirectory()) continue;
       const current = path.join(PROJECTS_ROOT, entry.name, 'CURRENT.md');
@@ -83,8 +85,8 @@ function projectRefsFromVault(): ProjectRef[] {
         name: entry.name,
         aliases: [entry.name],
         repoPaths: extractPaths(text),
-        currentPaths: fs.existsSync(current) ? [current] : [],
-        evidence: fs.existsSync(current) ? [current] : [],
+        currentPaths: fs.existsSync(/* turbopackIgnore: true */ current) ? [current] : [],
+        evidence: fs.existsSync(/* turbopackIgnore: true */ current) ? [current] : [],
       });
     }
   }
@@ -153,7 +155,7 @@ function summarizeLoop(repoPath: string | null, evidence: string[]) {
   ];
   const output: string[] = [];
   for (const filePath of candidates) {
-    if (!fs.existsSync(filePath)) continue;
+    if (!fs.existsSync(/* turbopackIgnore: true */ filePath)) continue;
     evidence.push(filePath);
     const text = readMaybe(filePath);
     const lines = filePath.endsWith('.json')
@@ -172,8 +174,9 @@ function chooseBlocker(status: string[], currentEntries: string[], missing: stri
   return 'No blocker found in checked git + Obsidian sources.';
 }
 
-function chooseNext(commits: string[], status: string[], currentEntries: string[], missing: string[]) {
+function chooseNext(commits: string[], status: string[], currentEntries: string[], missing: string[], warnings: string[]) {
   const nextLine = currentEntries.find(x => /next|todo|priority|ship|fix|continue/i.test(x));
+  if (warnings.some(x => /ralph/i.test(x))) return 'Resolve the Ralph state conflict before trusting loop progress.';
   if (nextLine) return nextLine;
   if (status.length) return 'Review dirty files, separate generated noise from intentional changes, then commit or discard intentionally.';
   if (missing.length) return 'Add or correct the missing project path in PROJECT_INDEX.md or the project CURRENT.md.';
@@ -181,10 +184,32 @@ function chooseNext(commits: string[], status: string[], currentEntries: string[
   return 'No recent work found after checking git and Obsidian; create a CURRENT.md next action before starting.';
 }
 
+function classifyDirty(lines: string[]): ProjectStatus['dirtyGroups'] {
+  const groups: ProjectStatus['dirtyGroups'] = { app: [], generated: [], submodule: [], docs: [], unknown: [] };
+  for (const line of lines) {
+    const file = line.replace(/^(?:\?\?|[ MADRCU?!]{1,2})\s+/, '').trim();
+    if (/^(data\/|tsconfig\.tsbuildinfo|.*\.tsbuildinfo$|research\/mazos\/latest-vault-scan\.md$)/i.test(file)) groups.generated.push(line);
+    else if (/^external\/|^\.gitmodules$/i.test(file)) groups.submodule.push(line);
+    else if (/^(src\/|app\/|config\/|package\.json|next\.config|tailwind\.config|postcss\.config)/i.test(file)) groups.app.push(line);
+    else if (/^(README|docs\/|research\/|.*\.md$)/i.test(file)) groups.docs.push(line);
+    else groups.unknown.push(line);
+  }
+  return groups;
+}
+
+function detectWarnings(loopState: string[], status: string[], missing: string[]) {
+  const warnings = [...missing];
+  const ralphComplete = loopState.some(x => /\.ralph\/STATE\.md/i.test(x) && /complete|completed|all stories/i.test(x));
+  const ralphPending = loopState.some(x => /\.ralph\/prd\.json/i.test(x) && /in_progress|pending/i.test(x));
+  if (ralphComplete && ralphPending) warnings.push('Ralph state conflict: .ralph/STATE.md says complete but .ralph/prd.json still has in-progress/pending tasks.');
+  if (status.some(x => x.includes('external/agent-sources') || x.includes('.gitmodules'))) warnings.push('External-source/submodule work is dirty; verify before claiming source wiring is complete.');
+  return unique(warnings);
+}
+
 export function latestProjectStatus(query: string): ProjectStatus {
   const evidence: string[] = [];
   const missing: string[] = [];
-  if (fs.existsSync(PROJECT_INDEX)) evidence.push(PROJECT_INDEX);
+  if (fs.existsSync(/* turbopackIgnore: true */ PROJECT_INDEX)) evidence.push(PROJECT_INDEX);
   else missing.push(`Missing project index: ${PROJECT_INDEX}`);
 
   const project = resolveProject(query);
@@ -196,8 +221,10 @@ export function latestProjectStatus(query: string): ProjectStatus {
       missing: [`No project match for "${query}" in ${PROJECT_INDEX}`],
       latestCommits: [],
       gitStatus: [],
+      dirtyGroups: { app: [], generated: [], submodule: [], docs: [], unknown: [] },
       currentEntries: [],
       loopState: [],
+      warnings: [`No project match for "${query}" in ${PROJECT_INDEX}`],
       blocker: 'Project could not be resolved.',
       nextBestAction: 'Add the project to PROJECT_INDEX.md or 02-PROJECTS/<Project>/CURRENT.md, then rerun status.',
       evidencePathsRead: evidence,
@@ -205,12 +232,12 @@ export function latestProjectStatus(query: string): ProjectStatus {
   }
 
   evidence.push(...project.evidence);
-  const repoPath = project.repoPaths.find(p => fs.existsSync(p) && fs.existsSync(path.join(p, '.git'))) || null;
+  const repoPath = project.repoPaths.find(p => fs.existsSync(/* turbopackIgnore: true */ p) && fs.existsSync(/* turbopackIgnore: true */ path.join(p, '.git'))) || null;
   if (!repoPath) missing.push(`No existing git repo path found for ${project.name}. Checked: ${project.repoPaths.join(', ') || 'none'}`);
 
   const currentPaths = project.currentPaths.length
     ? project.currentPaths
-    : [path.join(PROJECTS_ROOT, project.name, 'CURRENT.md')].filter(fs.existsSync);
+    : [path.join(PROJECTS_ROOT, project.name, 'CURRENT.md')].filter(filePath => fs.existsSync(/* turbopackIgnore: true */ filePath));
   const currentEntries = currentPaths.flatMap(filePath => {
     evidence.push(filePath);
     return summarizeCurrent(readMaybe(filePath), project.name);
@@ -221,6 +248,8 @@ export function latestProjectStatus(query: string): ProjectStatus {
     : [];
   const gitStatus = repoPath ? git(repoPath, ['status', '--short']).split(/\r?\n/).filter(Boolean) : [];
   const loopState = summarizeLoop(repoPath, evidence);
+  const dirtyGroups = classifyDirty(gitStatus);
+  const warnings = detectWarnings(loopState, gitStatus, missing);
 
   return {
     query,
@@ -229,10 +258,12 @@ export function latestProjectStatus(query: string): ProjectStatus {
     missing,
     latestCommits,
     gitStatus,
+    dirtyGroups,
     currentEntries,
     loopState,
-    blocker: chooseBlocker(gitStatus, currentEntries, missing),
-    nextBestAction: chooseNext(latestCommits, gitStatus, currentEntries, missing),
+    warnings,
+    blocker: chooseBlocker(gitStatus, currentEntries, warnings),
+    nextBestAction: chooseNext(latestCommits, gitStatus, currentEntries, missing, warnings),
     evidencePathsRead: unique(evidence),
   };
 }
