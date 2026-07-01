@@ -35,3 +35,17 @@ controls:
   vault_scan_enabled: true
   focus_sessions_enabled: true
   weekly_digest_enabled: false
+  external_agent_sources_enabled: true
+
+external_sources:
+  local_root: "C:/Users/manaz/.hermes/external-sources"
+  mazos_submodules: "C:/Users/manaz/Projects/mazos-ui/external/agent-sources"
+  registry: "research/mazos/HERMES_EXTERNAL_SOURCES.md"
+  hermes_registry: "C:/Users/manaz/.hermes/mazos/EXTERNAL_SOURCES.md"
+  sources:
+    headroom: "Context compression, token savings, reversible retrieval, MCP/proxy compression"
+    agent_reach: "Web reach, YouTube/RSS/GitHub, explicit user-configured social access"
+    nvidia_skills: "CUDA, Jetson, NeMo, cuOpt, GPU and NVIDIA platform skills"
+    claude_skills: "Reusable skill and agent workflow patterns"
+    maxun: "Browser automation and web extraction architecture"
+    loop_engineering: "Recurring agent loops with stop conditions, budgets and human gates"

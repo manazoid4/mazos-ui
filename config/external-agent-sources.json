@@ -1,0 +1,69 @@
+{
+  "updatedAt": "2026-07-01",
+  "localRoot": "C:/Users/manaz/.hermes/external-sources",
+  "mazosSubmoduleRoot": "external/agent-sources",
+  "sources": [
+    {
+      "id": "headroom",
+      "repo": "https://github.com/headroomlabs-ai/headroom.git",
+      "localPath": "C:/Users/manaz/.hermes/external-sources/headroom",
+      "submodulePath": "external/agent-sources/headroom",
+      "revision": "4f560bccc7c4c96cddb7a45a47492d092cb78b4d",
+      "useWhen": "Context compression, token reduction, reversible retrieval, shared agent memory, MCP/proxy compression."
+    },
+    {
+      "id": "agent-reach",
+      "repo": "https://github.com/Panniantong/agent-reach.git",
+      "localPath": "C:/Users/manaz/.hermes/external-sources/agent-reach",
+      "submodulePath": "external/agent-sources/agent-reach",
+      "revision": "e87bcdb17713c24513f6151d508f701b87dfd797",
+      "useWhen": "Web reach for agents: webpages, YouTube, RSS, GitHub, and explicit user-configured social access."
+    },
+    {
+      "id": "nvidia-skills",
+      "repo": "https://github.com/nvidia/skills.git",
+      "localPath": "C:/Users/manaz/.hermes/external-sources/nvidia-skills",
+      "submodulePath": "external/agent-sources/nvidia-skills",
+      "revision": "55f8f7a5a4d77ed14f57e74c786fa04d193b6541",
+      "useWhen": "NVIDIA/GPU/CUDA/Jetson/NeMo/cuOpt/RAG/AI blueprint work."
+    },
+    {
+      "id": "claude-skills",
+      "repo": "https://github.com/alirezarezvani/claude-skills.git",
+      "localPath": "C:/Users/manaz/.hermes/external-sources/claude-skills",
+      "submodulePath": "external/agent-sources/claude-skills",
+      "revision": "4a3c05b69e64f4925f7fc65c88890f614f79caf0",
+      "useWhen": "Reusable agent skills, commands, role libraries, and workflow design patterns."
+    },
+    {
+      "id": "maxun",
+      "repo": "https://github.com/getmaxun/maxun.git",
+      "localPath": "C:/Users/manaz/.hermes/external-sources/maxun",
+      "submodulePath": "external/agent-sources/maxun",
+      "revision": "ca458fed8a92436f35e3f06bf86317f5a9e2f3c3",
+      "useWhen": "Browser automation and web extraction architecture within legal and platform-safe boundaries."
+    },
+    {
+      "id": "loop-engineering",
+      "repo": "https://github.com/cobusgreyling/loop-engineering.git",
+      "localPath": "C:/Users/manaz/.hermes/external-sources/loop-engineering",
+      "submodulePath": "external/agent-sources/loop-engineering",
+      "revision": "b623b5f4d52db08ba88d0d404bbb8e40e9ee6565",
+      "useWhen": "Recurring automations, agent loops, PR/CI loops, cost checks, stop conditions, and loop audits."
+    }
+  ],
+  "standaloneFiles": [
+    {
+      "id": "claude-skills-claude-md",
+      "source": "https://raw.githubusercontent.com/alirezarezvani/claude-skills/main/CLAUDE.md",
+      "localPath": "C:/Users/manaz/.hermes/external-sources/CLAUDE.alirezarezvani-claude-skills.md",
+      "useWhen": "Copy-paste agent operating rules and skill orchestration guidance."
+    }
+  ],
+  "unresolved": [
+    {
+      "repo": "https://github.com/alirezarezvani/claude",
+      "reason": "GitHub could not resolve this repository. Installed alirezarezvani/claude-skills instead because it is public and contains the linked CLAUDE.md."
+    }
+  ]
+}

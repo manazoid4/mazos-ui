@@ -2,6 +2,24 @@
 
 Command & Control Interface for MazOS.
 
+## Hermes External Sources
+
+Hermes external agent sources are installed locally at:
+
+`C:\Users\manaz\.hermes\external-sources`
+
+MAZos records the same sources as Git submodules under:
+
+`external/agent-sources`
+
+Registry and instructions:
+
+- `research/mazos/HERMES_EXTERNAL_SOURCES.md`
+- `config/external-agent-sources.json`
+- live Hermes skill: `C:\Users\manaz\.hermes\skills\external-agent-sources\SKILL.md`
+
+Use these as reference/capability sources only. Do not run global installers, wrap agents, scrape private content, or create recurring loops without explicit confirmation and safety gates.
+
 ## Overview
 MazOS Control Deck is a persistent, formalized system providing a React-based UI that interfaces with underlying Hermes skills via YAML configuration files.
 
