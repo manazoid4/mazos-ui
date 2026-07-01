@@ -39,7 +39,9 @@ export function buildShipLog(): ShipLog {
   }
   const byDay = new Map<string, Commit[]>();
   for (const c of commits) { if (!byDay.has(c.day)) byDay.set(c.day, []); byDay.get(c.day)!.push(c); }
-  const days = [...byDay.entries()].sort((a, b) => b[0].localeCompare(a[0])).map(([day, cs]) => ({ day, commits: cs }));
+  const days = Array.from(byDay.entries())
+    .sort((a, b) => b[0].localeCompare(a[0]))
+    .map(([day, cs]: [string, Commit[]]) => ({ day, commits: cs }));
 
   const todayStr = new Date().toISOString().slice(0, 10);
   const runs = readRuns(50);

@@ -41,7 +41,7 @@ export function foldDecisions(events: DecisionEvent[]): DecisionItem[] {
       if (item) { item.status = e.status || 'answered'; item.resolution = e.resolution || ''; item.resolvedAt = e.at; }
     }
   }
-  return [...items.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  return Array.from(items.values()).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
 // Copyable prompt telling the waiting agent what the human decided.
