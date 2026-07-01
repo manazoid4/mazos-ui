@@ -16,3 +16,33 @@
 [submodule "external/agent-sources/loop-engineering"]
 	path = external/agent-sources/loop-engineering
 	url = https://github.com/cobusgreyling/loop-engineering.git
+[submodule "external/agent-sources/awesome-n8n-templates"]
+	path = external/agent-sources/awesome-n8n-templates
+	url = https://github.com/enescingoz/awesome-n8n-templates.git
+[submodule "external/agent-sources/cal-com"]
+	path = external/agent-sources/cal-com
+	url = https://github.com/calcom/cal.com.git
+[submodule "external/agent-sources/plausible-analytics"]
+	path = external/agent-sources/plausible-analytics
+	url = https://github.com/plausible/analytics.git
+[submodule "external/agent-sources/ghost"]
+	path = external/agent-sources/ghost
+	url = https://github.com/TryGhost/Ghost.git
+[submodule "external/agent-sources/n8n"]
+	path = external/agent-sources/n8n
+	url = https://github.com/n8n-io/n8n.git
+[submodule "external/agent-sources/supabase"]
+	path = external/agent-sources/supabase
+	url = https://github.com/supabase/supabase.git
+[submodule "external/agent-sources/medusa"]
+	path = external/agent-sources/medusa
+	url = https://github.com/medusajs/medusa.git
+[submodule "external/agent-sources/appflowy"]
+	path = external/agent-sources/appflowy
+	url = https://github.com/AppFlowy-IO/AppFlowy.git
+[submodule "external/agent-sources/coolify"]
+	path = external/agent-sources/coolify
+	url = https://github.com/coollabsio/coolify.git
+[submodule "external/agent-sources/listmonk"]
+	path = external/agent-sources/listmonk
+	url = https://github.com/knadh/listmonk.git

@@ -49,3 +49,4 @@ external_sources:
     claude_skills: "Reusable skill and agent workflow patterns"
     maxun: "Browser automation and web extraction architecture"
     loop_engineering: "Recurring agent loops with stop conditions, budgets and human gates"
+    awesome_n8n_templates: "n8n workflow templates, integration/webhook automation examples, no-code automation patterns"

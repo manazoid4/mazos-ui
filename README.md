@@ -20,6 +20,8 @@ Registry and instructions:
 
 Use these as reference/capability sources only. Do not run global installers, wrap agents, scrape private content, or create recurring loops without explicit confirmation and safety gates.
 
+Installed source families include context compression, web reach, NVIDIA/GPU skills, reusable agent skills, browser automation, recurring loop engineering, and n8n workflow templates. The n8n templates are mirrored as a sparse MAZos submodule because the full repository contains Windows long-path filenames; Hermes should use the full local clone under `C:\Users\manaz\.hermes\external-sources\awesome-n8n-templates`.
+
 ## Overview
 MazOS Control Deck is a persistent, formalized system providing a React-based UI that interfaces with underlying Hermes skills via YAML configuration files.
 

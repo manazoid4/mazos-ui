@@ -50,6 +50,14 @@
       "submodulePath": "external/agent-sources/loop-engineering",
       "revision": "b623b5f4d52db08ba88d0d404bbb8e40e9ee6565",
       "useWhen": "Recurring automations, agent loops, PR/CI loops, cost checks, stop conditions, and loop audits."
+    },
+    {
+      "id": "awesome-n8n-templates",
+      "repo": "https://github.com/enescingoz/awesome-n8n-templates.git",
+      "localPath": "C:/Users/manaz/.hermes/external-sources/awesome-n8n-templates",
+      "submodulePath": "external/agent-sources/awesome-n8n-templates",
+      "revision": "2d78bc648ecd6eb6712583bd7baaaa5270c0b16a",
+      "useWhen": "n8n workflow templates, automation workflow design, webhook/integration examples, and reusable no-code automation patterns. MAZos submodule checkout is sparse because the full repo contains Windows long-path template filenames; use the full Hermes clone for template files."
     }
   ],
   "standaloneFiles": [

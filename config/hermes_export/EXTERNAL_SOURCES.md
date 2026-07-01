@@ -12,5 +12,6 @@ Use the external-agent-sources skill to route tasks:
 - Claude Skills: reusable skills, commands and agent role patterns.
 - Maxun: browser automation and web extraction architecture.
 - Loop Engineering: recurring agent loops with stop conditions, budgets and human gates.
+- Awesome n8n Templates: n8n workflow templates, webhook/integration automations, no-code workflow patterns. Adapt examples manually; do not blindly activate imported workflows.
 
 Require explicit user confirmation before global installers or agent wrapping. Refuse private scraping and platform authentication bypass.
