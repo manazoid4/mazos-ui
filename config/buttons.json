@@ -34,5 +34,17 @@
     "enabled": true,
     "requires_confirmation": true,
     "output_target": "research/weekly/latest-email-digest.md"
+  },
+  {
+    "id": "external-agent-sources",
+    "label": "External Agent Sources",
+    "description": "Use Headroom, Agent Reach, NVIDIA Skills, Claude Skills, Maxun, or Loop Engineering safely",
+    "category": "Agent",
+    "danger_level": "safe",
+    "action_type": "prompt",
+    "command_value": "Read research/mazos/HERMES_EXTERNAL_SOURCES.md, pick the smallest relevant installed external source, read its local README/SKILL.md, and refuse private scraping, auth bypass, or unbounded loops.",
+    "enabled": true,
+    "requires_confirmation": false,
+    "output_target": "research/mazos/HERMES_EXTERNAL_SOURCES.md"
   }
 ]

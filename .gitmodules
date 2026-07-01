@@ -1,0 +1,18 @@
+[submodule "external/agent-sources/headroom"]
+	path = external/agent-sources/headroom
+	url = https://github.com/headroomlabs-ai/headroom.git
+[submodule "external/agent-sources/agent-reach"]
+	path = external/agent-sources/agent-reach
+	url = https://github.com/Panniantong/agent-reach.git
+[submodule "external/agent-sources/nvidia-skills"]
+	path = external/agent-sources/nvidia-skills
+	url = https://github.com/nvidia/skills.git
+[submodule "external/agent-sources/claude-skills"]
+	path = external/agent-sources/claude-skills
+	url = https://github.com/alirezarezvani/claude-skills.git
+[submodule "external/agent-sources/maxun"]
+	path = external/agent-sources/maxun
+	url = https://github.com/getmaxun/maxun.git
+[submodule "external/agent-sources/loop-engineering"]
+	path = external/agent-sources/loop-engineering
+	url = https://github.com/cobusgreyling/loop-engineering.git
