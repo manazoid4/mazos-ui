@@ -3,10 +3,12 @@ import path from 'path';
 import { PATHS, VAULT_INDEX, VAULT_SCAN_MD } from './paths';
 import { runCommand, promptResult } from './runCommand';
 import { scanRepos } from './repoScanner';
+import { safetyForAction, type SafetyLevel } from './safety';
 
-export type Action = { id: string; label: string; description: string; category: string; enabled: boolean; disabledReason?: string; dangerLevel: 'safe'|'caution'|'danger'; handler: 'command'|'prompt'|'repo'|'vault'; expectedOutput: string; fallbackPrompt: string; command?: string; args?: string[]; cwd?: string; };
+export type Action = { id: string; label: string; description: string; category: string; enabled: boolean; disabledReason?: string; dangerLevel: 'safe'|'caution'|'danger'; safetyLevel: SafetyLevel; handler: 'command'|'prompt'|'repo'|'vault'; expectedOutput: string; fallbackPrompt: string; command?: string; args?: string[]; cwd?: string; };
 const prompt = (x:string) => x;
-export function actions(): Action[] { return [
+export function actions(): Action[] { return rawActions().map(a => ({ ...a, safetyLevel: safetyForAction(a.dangerLevel, a.handler) })); }
+function rawActions(): Omit<Action,'safetyLevel'>[] { return [
   { id:'start_focus_sprint', label:'Start Focus Sprint', description:'Open focus mode.', category:'Execute', enabled:true, dangerLevel:'safe', handler:'prompt', expectedOutput:'Focus sprint prompt', fallbackPrompt:'Start a 45 minute focus sprint. Ask me for mission, success condition, blockers, then hold me accountable.' },
   { id:'daily_triage_l1', label:'Daily Triage L1', description:'Manual report-only triage; max 3 priorities.', category:'Execute', enabled:true, dangerLevel:'safe', handler:'prompt', expectedOutput:'Report-only triage prompt', fallbackPrompt:'Run MAZos Daily Triage in L1 report-only mode. Read STATE.md, LOOP.md, loop-budget.md, 03-MEMORY/PROJECT_INDEX.md, 03-MEMORY/CURRENT_TASKS.md, and relevant 02-PROJECTS CURRENT notes. Inspect git status only. Return max 3 high-priority items, current blocker, one next action, and evidence paths. Do not edit files, commit, push, deploy, scrape, touch credentials, or run paid/account actions.' },
   { id:'continue_important_task', label:'Continue Most Important Task', description:'Generate next-action prompt.', category:'Execute', enabled:true, dangerLevel:'safe', handler:'prompt', expectedOutput:'Next task prompt', fallbackPrompt:'Review current repo status and session history. Pick the single highest-leverage unfinished task for Recall/JobFilter/MazOS. Give exact next 3 actions.' },
