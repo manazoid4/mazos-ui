@@ -1,7 +1,23 @@
 import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
-import { INGEST_QUEUE, PATHS } from '@/lib/mazos/paths';
+import { INGEST_QUEUE, PATHS, DECISIONS_LOG } from '@/lib/mazos/paths';
+
+// Auth/ToS-bound platforms: queued sources from these need an explicit human decision
+// before any manual processing (no scraping, no auth bypass).
+const TOS_BOUND = ['instagram', 'x', 'tiktok'];
+function fileTosDecision(items: { url?: string; sourceType: string }[]) {
+  const bound = items.filter(i => i.url && TOS_BOUND.includes(i.sourceType));
+  if (!bound.length) return;
+  const event = {
+    id: `d-${Date.now().toString(36)}`, at: new Date().toISOString(), type: 'open', source: 'intake',
+    question: `${bound.length} queued source(s) sit behind auth/ToS boundaries. Process manually?`,
+    context: bound.slice(0, 5).map(i => `${i.sourceType}: ${i.url}`).join(' · ').slice(0, 500),
+    options: ['approve', 'deny'],
+  };
+  fs.mkdirSync(path.dirname(DECISIONS_LOG), { recursive: true });
+  fs.appendFileSync(DECISIONS_LOG, `${JSON.stringify(event)}\n`, 'utf8');
+}
 
 function sourceType(name: string) {
   const s = name.toLowerCase();
@@ -49,8 +65,10 @@ export async function POST(req: Request) {
   const queued = items.filter(i => !('url' in i) || !['youtube','instagram'].includes(i.sourceType));
   const results:any[] = [];
   try { for (const kind of ['youtube','instagram']) { const group = direct.filter(i => i.sourceType === kind); if (group.length) results.push({ kind, ...(await recallPost(kind, group.map(i=>i.url))) }); } }
-  catch (e:any) { queue(direct); results.push({ error: 'Recall service offline; queued fallback', detail: e.message }); }
+  catch (e:any) { queue(direct); fileTosDecision(direct); results.push({ error: 'Recall service offline; queued fallback', detail: e.message }); }
   const failedKinds = new Set(results.filter(r => r && r.ok === false).map(r => r.kind));
-  queue([...queued, ...direct.filter(i => failedKinds.has(i.sourceType))]);
+  const finalQueued = [...queued, ...direct.filter(i => failedKinds.has(i.sourceType))];
+  queue(finalQueued);
+  fileTosDecision(finalQueued as { url?: string; sourceType: string }[]);
   return NextResponse.json({ success:true, message: queued.length || failedKinds.size ? 'queued + routed what is supported' : 'sent to Recall', accepted: items.length, direct: direct.length, queued: queued.length + failedKinds.size, results, queuePath: INGEST_QUEUE });
 }

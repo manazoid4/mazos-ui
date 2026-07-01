@@ -8,6 +8,9 @@ export const RUN_DIR = path.join(DATA_DIR, 'runs');
 export const INGEST_QUEUE = path.join(DATA_DIR, 'ingest-queue.jsonl');
 export const VAULT_INDEX = path.join(DATA_DIR, 'vault-index.json');
 export const VAULT_SCAN_MD = path.join(RESEARCH_DIR, 'latest-vault-scan.md');
+export const LOOP_RUNS = path.join(DATA_DIR, 'loop-runs.jsonl');
+export const LOOPS_STATE = path.join(DATA_DIR, 'loops.json');
+export const DECISIONS_LOG = path.join(DATA_DIR, 'decisions.jsonl');
 
 export const PATHS = {
   mazos_ui: 'C:/Users/manaz/Projects/mazos-ui',

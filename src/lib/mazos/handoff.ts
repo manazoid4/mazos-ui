@@ -16,7 +16,7 @@ export type HandoffInput = {
 };
 
 // Forbidden actions grow as the safety ceiling drops: an L1 handoff forbids everything above read-only.
-function forbiddenFor(safety: SafetyLevel, extra: string[] = []): string[] {
+export function forbiddenFor(safety: SafetyLevel, extra: string[] = []): string[] {
   const base: string[] = ['Push to main directly.', 'Delete or revert unrelated dirty files.', 'Invent results or claim work you did not verify.'];
   const gated: Record<SafetyLevel, string[]> = {
     L1: ['Edit any file.', 'Commit, push, or open PRs.', 'Call external APIs or scrape.', 'Deploy, pay, or touch credentials/accounts.'],
