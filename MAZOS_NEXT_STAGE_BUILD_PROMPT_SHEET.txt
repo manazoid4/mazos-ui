@@ -1,0 +1,404 @@
+MAZOS NEXT STAGE BUILD PROMPT SHEET
+Generated: 2026-07-01
+Repo: C:\Users\manaz\Projects\mazos-ui
+GitHub: https://github.com/manazoid4/mazos-ui
+Current reference PR: https://github.com/manazoid4/mazos-ui/pull/3
+
+MISSION
+Make MAZos genuinely useful, lighter, and execution-focused. Do not make it a bloated AI dashboard. Make it a local command cockpit that helps Maz ship Recall, JobFilter, OpenFlowKit, and MAZos itself.
+
+CORE PRODUCT STANDARD
+Every MAZos screen and button must answer at least one of these:
+1. What matters now?
+2. Why does it matter?
+3. What evidence proves it?
+4. What exact next action should Hermes/Codex take?
+5. What safety level applies?
+6. What worked, failed, or needs manual handling?
+
+CURRENT REALITY TO RESPECT
+- Stack: Next.js/React local cockpit.
+- Main config: config/control-panel.yaml.
+- Safety defaults: safe_mode true, allow_shell false, allow_push false, allow_destructive false.
+- Priority repos:
+  - MAZos UI: C:\Users\manaz\Projects\mazos-ui
+  - Recall: C:\Users\manaz\Projects\recall
+  - JobFilter: C:\Users\manaz\Desktop\JobFilterV1 or C:\Users\manaz\Projects\JobFilterV1
+  - OpenFlowKit: C:\Users\manaz\Projects\openflowkit
+  - Obsidian: C:\Users\manaz\Desktop\Obsidian Main Vault
+- Recent useful base:
+  - PR #3 added project status lookup and daily cockpit sharpening.
+  - Existing branch observed: agents/mazos-command-centre-next.
+  - Recent commit reference: 42c47f9 feat: sharpen mazos daily cockpit.
+- Do not revert unrelated dirty files or background-agent work.
+
+INSPIRATION FROM INSTALLED GITHUB SOURCES
+Use these as reference patterns only. Do not blindly install, run, import, or activate anything.
+
+1. Headroom
+Reference: https://github.com/headroomlabs-ai/headroom
+Local: external/agent-sources/headroom
+Inspiration: compact context packs, reversible summaries, shared agent memory, token savings.
+MAZos use: Hermes Context Pack, compressed handoffs, last-run summaries, no huge logs in UI.
+
+2. Agent Reach
+Reference: https://github.com/Panniantong/agent-reach
+Local: external/agent-sources/agent-reach
+Inspiration: agent web reach, YouTube/RSS/GitHub/social access with diagnostics and consent.
+MAZos use: safe Source Intake routing. Queue social/web sources and create manual prompts when auth or ToS boundaries apply.
+
+3. NVIDIA Skills
+Reference: https://github.com/nvidia/skills
+Local: external/agent-sources/nvidia-skills
+Inspiration: verified capability governance for agent skills.
+MAZos use: skill/tool router with read-first rules, safety ceilings, and source-specific evidence.
+
+4. Claude Skills
+Reference: https://github.com/alirezarezvani/claude-skills
+Local: external/agent-sources/claude-skills
+Inspiration: reusable skill packs, commands, agents, personas, orchestration.
+MAZos use: better Hermes/Codex handoff prompts, action categories, role-specific workflows.
+
+5. Maxun
+Reference: https://github.com/getmaxun/maxun
+Local: external/agent-sources/maxun
+Inspiration: browser automation, extraction robots, crawl/search/extract separation.
+MAZos use: browser automation architecture only, never private scraping or auth bypass. Good for "manual processing prompt" structure.
+
+6. Loop Engineering
+Reference: https://github.com/cobusgreyling/loop-engineering
+Local: external/agent-sources/loop-engineering
+Inspiration: stop conditions, budgets, run logs, loop audit, human gates.
+MAZos use: RALPH/loop state clarity, daily triage loops, PR babysitter prompts, "stop and ask" boundaries.
+
+7. n8n and Awesome n8n Templates
+References:
+- https://github.com/n8n-io/n8n
+- https://github.com/enescingoz/awesome-n8n-templates
+Local:
+- external/agent-sources/n8n
+- external/agent-sources/awesome-n8n-templates
+Inspiration: workflow engine, integrations, webhook templates, AI workflow patterns.
+MAZos use: automation blueprint suggestions, not blind workflow imports. Credentials must remain manual.
+
+8. Cal.com
+Reference: https://github.com/calcom/cal.com
+Local: external/agent-sources/cal-com
+Inspiration: scheduling and booking primitives.
+MAZos use: future "book/follow-up/focus session" references, not a core dependency.
+
+9. Plausible Analytics
+Reference: https://github.com/plausible/analytics
+Local: external/agent-sources/plausible-analytics
+Inspiration: privacy-first simple analytics.
+MAZos use: local metrics style: simple, readable, no tracking bloat.
+
+10. Ghost
+Reference: https://github.com/TryGhost/Ghost
+Local: external/agent-sources/ghost
+Inspiration: publishing, newsletters, content membership.
+MAZos use: future "publish what shipped" or project update workflows.
+
+11. Supabase
+Reference: https://github.com/supabase/supabase
+Local: external/agent-sources/supabase
+Inspiration: Postgres, auth, storage, realtime, dashboard patterns.
+MAZos use: backend reference for Recall/JobFilter, not required for local MAZos cockpit unless explicitly needed.
+
+12. Medusa
+Reference: https://github.com/medusajs/medusa
+Local: external/agent-sources/medusa
+Inspiration: commerce modules and order/product primitives.
+MAZos use: future monetization/checkout architecture reference only.
+
+13. AppFlowy
+Reference: https://github.com/AppFlowy-IO/AppFlowy
+Local: external/agent-sources/appflowy
+Inspiration: Notion-style workspace, boards, docs, knowledge control.
+MAZos use: Ship Board and project memory UX inspiration.
+
+14. Coolify
+Reference: https://github.com/coollabsio/coolify
+Local: external/agent-sources/coolify
+Inspiration: self-host deployment cockpit.
+MAZos use: deployment readiness/checklist patterns. Actual deploys are L5 only.
+
+15. Listmonk
+Reference: https://github.com/knadh/listmonk
+Local: external/agent-sources/listmonk
+Inspiration: fast mailing list/newsletter manager.
+MAZos use: future email digest / founder update / customer follow-up patterns. Sending email is L4.
+
+16. Penpot
+Reference: https://github.com/penpot/penpot
+Local: external/agent-sources/penpot
+Inspiration: design/prototyping workflow.
+MAZos use: UI/UX reference only. Do not let Penpot source files pollute MAZos build scans.
+
+NEXT STAGE BUILD SCOPE
+Build the smallest useful version. Fewer strong features beat many weak panels.
+
+Feature 1: Hermes Context Pack
+- Add an API/action that scans lightweight summaries only:
+  - MAZos git status and branch.
+  - priority repo existence/status.
+  - last 5 run logs from data/mazos/runs.
+  - latest vault index if available.
+  - config/control-panel.yaml mission and safety.
+  - external source registry summary.
+- Write compact markdown to data/mazos/hermes-context-pack.md.
+- Return it to the UI in a modal.
+- Keep it under about 2500 words.
+- No massive raw logs.
+
+Feature 2: Light Hermes Prompt
+- Add button: Generate Light Hermes Prompt.
+- Output one copy-paste prompt that says:
+  - one repo only.
+  - one task only.
+  - inspect before changing.
+  - run build/lint only if relevant.
+  - summarize changed files.
+  - no destructive commands.
+  - no pushing unless Maz explicitly asks.
+- Save to data/mazos/latest-light-hermes-prompt.md.
+
+Feature 3: Real Next Best Move
+- Replace generic "Next Best Move" copy with a calculated recommendation.
+- Inputs:
+  - dirty repos.
+  - build failures from latest runs.
+  - queued ingest items.
+  - today's focus sessions.
+  - critical offline services.
+  - project status warnings.
+- Display:
+  - "Do this now: ____"
+  - "Why: ____"
+  - button to generate exact Hermes prompt for that task.
+
+Feature 4: Button Audit
+- Audit src/lib/mazos/commandRegistry.ts.
+- Every action must either:
+  A. do a safe useful thing,
+  B. be disabled with a reason,
+  C. generate a clean copy-paste prompt with exact next steps.
+- Remove duplicates/fluff.
+- Add or verify these action ids:
+  - generate_hermes_context_pack
+  - generate_light_hermes_prompt
+  - process_ingest_queue_summary
+  - repo_ship_readiness
+  - write_session_handoff
+  - write_obsidian_decisions
+  - open_money_task_prompt
+
+Feature 5: Intake Queue Panel
+- Show queued items from data/mazos/ingest-queue.jsonl.
+- Show sourceType, target, tags, notes, queuedAt, status.
+- Status values: queued, routed, failed, needs manual.
+- For Instagram/X/TikTok: queue safely and create manual processing prompt unless Recall already supports it.
+- Do not scrape private content or bypass auth.
+
+Feature 6: Focus That Produces Evidence
+- Keep it lightweight.
+- Ending a sprint requires "What did I ship?" unless abandoned.
+- Add "Next action".
+- Write daily summary to data/mazos/focus-daily/YYYY-MM-DD.md.
+- Add button: Create handoff from today.
+- No heavy charts.
+
+Feature 7: Repo Command Centre
+- Each repo card should show:
+  - exists/missing.
+  - branch.
+  - dirty count.
+  - unpushed count.
+  - package manager.
+  - scripts available.
+  - last modified.
+  - GitHub link if known.
+- Buttons:
+  - Scan.
+  - Build if build script exists.
+  - Lint if lint script exists.
+  - Generate Fix Prompt.
+  - Generate Ship Checklist.
+- Commands must be safe: no rm, no reset, no force push, no credential dumping.
+
+Feature 8: Ship Board
+- Add a simple page or panel with columns:
+  - Now.
+  - Next.
+  - Blocked.
+  - Done Today.
+- Derive from:
+  - latest focus sessions.
+  - latest run logs.
+  - repo status.
+  - ingest queue.
+  - project-status API.
+- Keep local JSON/markdown only.
+
+Feature 9: Safety Rails Everywhere
+- Honour config/control-panel.yaml:
+  - safe_mode.
+  - allow_shell.
+  - allow_push.
+  - allow_destructive.
+- If allow_shell is false, shell actions become prompt-only or disabled.
+- Dangerous actions require explicit confirmation.
+- Never auto-push.
+- Use safety levels:
+  - L1 report-only.
+  - L2 local edit.
+  - L3 branch/PR.
+  - L4 external API/web/social/email.
+  - L5 deploy/payment/account.
+
+Feature 10: Make It Faster
+- No heavy vault scan on page load.
+- Cache vault scan results.
+- Limit file scanning and logs.
+- Show summaries over raw logs.
+- Avoid loading external sources unless directly requested.
+- Add small loading/error states.
+
+IMPLEMENTATION PROMPT TO COPY INTO HERMES OR CODEX
+
+You are improving MAZos locally on Maz's Windows PC.
+
+Repo:
+C:\Users\manaz\Projects\mazos-ui
+
+GitHub reference:
+https://github.com/manazoid4/mazos-ui
+Current reference PR:
+https://github.com/manazoid4/mazos-ui/pull/3
+
+Mission:
+Make MAZos a genuinely useful, lightweight execution cockpit for shipping Recall, JobFilter, OpenFlowKit, and MAZos. Do not make a bloated AI dashboard. Every button must either do a safe useful thing, be disabled with a reason, or generate a clean exact prompt.
+
+Before changing files:
+1. cd C:\Users\manaz\Projects\mazos-ui
+2. git status --short
+3. git branch --show-current
+4. git log -5 --oneline
+5. Read:
+   - README.md
+   - ARCHITECTURE.md
+   - config/control-panel.yaml
+   - src/app/page.tsx
+   - src/app/focus/page.tsx
+   - src/lib/focusStore.ts
+   - src/app/api/mazos/route.ts
+   - src/app/api/mazos/action/route.ts
+   - src/app/api/mazos/ingest/route.ts
+   - src/app/api/mazos/focus/route.ts
+   - src/lib/mazos/commandRegistry.ts
+   - src/lib/mazos/repoScanner.ts
+   - src/lib/mazos/runCommand.ts
+   - src/lib/mazos/paths.ts
+   - src/lib/mazos/safety.ts
+   - src/lib/mazos/toolRouter.ts
+   - src/lib/mazos/commandCentre.ts
+   - src/lib/mazos/handoff.ts
+   - research/mazos/HERMES_EXTERNAL_SOURCES.md
+   - MAZOS_NEXT_STAGE_BUILD_PROMPT_SHEET.txt
+
+Important:
+- Do not load every external repo.
+- Pick only the smallest relevant source.
+- Read the relevant local README/SKILL.md before using an external source.
+- Use Headroom for compact context/handoff ideas.
+- Use Agent Reach for safe web/source ingestion ideas.
+- Use Maxun for browser automation architecture only.
+- Use Loop Engineering for stop conditions, budgets, run logs, loop audits.
+- Use n8n and awesome-n8n-templates for workflow blueprint ideas.
+- Use NVIDIA Skills and Claude Skills for capability governance and agent routing.
+- Use Cal.com, Plausible, Ghost, Supabase, Medusa, AppFlowy, Coolify, Listmonk, and Penpot only as product references when directly relevant.
+- Do not run global installers.
+- Do not scrape private content or bypass auth.
+- Do not create recurring loops without explicit confirmation.
+- Do not deploy, pay, touch credentials, or push unless Maz explicitly asks.
+- Do not revert unrelated dirty files or background-agent work.
+
+Build the smallest useful version of:
+1. Hermes Context Pack:
+   - action/API writes data/mazos/hermes-context-pack.md.
+   - includes MAZos repo status, priority repo status, last 5 run logs, latest vault index summary, control-panel mission/safety, external source summary.
+   - returns compact markdown to UI modal.
+   - under roughly 2500 words.
+
+2. Light Hermes Prompt:
+   - button label: Generate Light Hermes Prompt.
+   - writes data/mazos/latest-light-hermes-prompt.md.
+   - prompt enforces one repo, one task, inspect first, safe verification, no destructive commands, no push unless Maz explicitly asks.
+
+3. Real Next Best Move:
+   - calculate one recommendation from dirty repos, build failures, ingest queue, focus sessions, critical services, and project warnings.
+   - show "Do this now: ____" and "Why: ____".
+   - include one button to generate a Hermes prompt for that recommendation.
+
+4. Button Audit:
+   - fix src/lib/mazos/commandRegistry.ts so every action works, is disabled with reason, or generates an exact prompt.
+   - add/verify generate_hermes_context_pack, generate_light_hermes_prompt, process_ingest_queue_summary, repo_ship_readiness, write_session_handoff, write_obsidian_decisions, open_money_task_prompt.
+
+5. Intake Queue:
+   - show data/mazos/ingest-queue.jsonl.
+   - show sourceType, target, tags, notes, queuedAt, status.
+   - status values: queued, routed, failed, needs manual.
+   - social sources should queue safely and create manual prompts.
+
+6. Focus Evidence:
+   - ending sprint requires "What did I ship?" unless abandoned.
+   - add "Next action".
+   - write daily summary to data/mazos/focus-daily/YYYY-MM-DD.md.
+   - add Create handoff from today.
+
+7. Repo Command Centre:
+   - show exists/missing, branch, dirty count, unpushed count, package manager, scripts, last modified, GitHub link.
+   - add Scan, Build, Lint, Generate Fix Prompt, Generate Ship Checklist where relevant.
+
+8. Ship Board:
+   - simple Now / Next / Blocked / Done Today panel or page.
+   - derive from focus sessions, run logs, repo status, ingest queue, project-status API.
+
+9. Safety:
+   - respect config/control-panel.yaml safe_mode, allow_shell, allow_push, allow_destructive.
+   - if allow_shell is false, command actions become prompt-only or disabled.
+   - display L1-L5 safety levels.
+   - never auto-push.
+
+10. Performance:
+   - no heavy vault scan on page load.
+   - cache vault scan results.
+   - limit logs and file scanning.
+   - show summaries over raw logs.
+   - add small loading/error states.
+
+Validation:
+- npm run lint
+- npm run build
+- GET http://localhost:3046/
+- API checks for MAZos, JobFilter, Recall, and missing project if project-status route is touched.
+- Report exact errors if any.
+
+Final response format:
+1. What changed.
+2. What works now.
+3. Build/lint result.
+4. Changed files.
+5. Exact next 3 tasks.
+6. Whether GitHub push is recommended, but do not push unless Maz explicitly says push.
+
+DEFINITION OF DONE
+- MAZos feels like a local operations cockpit, not a decorative dashboard.
+- The user can generate a compact Hermes context pack.
+- The user can generate a light Hermes prompt.
+- Next Best Move is calculated from real local signals.
+- Ingest queue is visible and safe.
+- Focus sessions create evidence.
+- Repo cards produce useful prompts/checklists.
+- Safety levels are visible and enforced.
+- Build and lint pass or exact failures are reported.
