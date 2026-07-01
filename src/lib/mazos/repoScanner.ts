@@ -25,9 +25,11 @@ export function scanRepos() {
     const status = exists ? git(r.path, ['status', '--short']) : '';
     const branch = exists ? git(r.path, ['branch', '--show-current']) : '';
     const unpushed = exists ? git(r.path, ['log', '@{u}..', '--oneline']) : '';
+    const lastCommitIso = exists ? git(r.path, ['log', '-1', '--format=%cI']) : '';
     return {
       ...r, exists, branch: branch || 'n/a', dirty: Boolean(status), status, unpushedCount: unpushed ? unpushed.split('\n').length : 0,
       lastModified: exists ? fs.statSync(r.path).mtime.toISOString() : null,
+      lastCommitIso: lastCommitIso || null,
       packageManager: exists ? (fs.existsSync(path.join(r.path, 'pnpm-lock.yaml')) ? 'pnpm' : fs.existsSync(path.join(r.path, 'yarn.lock')) ? 'yarn' : fs.existsSync(path.join(r.path, 'package-lock.json')) ? 'npm' : pkg ? 'npm' : 'none') : 'missing',
       scripts, buildScript: Boolean(scripts.build), lintScript: Boolean(scripts.lint), typecheckScript: Boolean(scripts.typecheck),
     };

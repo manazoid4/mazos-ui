@@ -46,3 +46,6 @@
 [submodule "external/agent-sources/listmonk"]
 	path = external/agent-sources/listmonk
 	url = https://github.com/knadh/listmonk.git
+[submodule "external/agent-sources/penpot"]
+	path = external/agent-sources/penpot
+	url = https://github.com/penpot/penpot.git
