@@ -16,3 +16,6 @@
 [submodule "external/agent-sources/loop-engineering"]
 	path = external/agent-sources/loop-engineering
 	url = https://github.com/cobusgreyling/loop-engineering.git
+[submodule "external/agent-sources/awesome-n8n-templates"]
+	path = external/agent-sources/awesome-n8n-templates
+	url = https://github.com/enescingoz/awesome-n8n-templates.git

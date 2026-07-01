@@ -25,6 +25,9 @@ MAZos Git submodule root:
 | Claude Skills CLAUDE.md | `C:\Users\manaz\.hermes\external-sources\CLAUDE.alirezarezvani-claude-skills.md` | included by source note | n/a | Copy-paste agent operating rules and skill orchestration guidance. |
 | Maxun | `C:\Users\manaz\.hermes\external-sources\maxun` | `external/agent-sources/maxun` | `ca458fed` | Browser automation, web data extraction, scraping workflow architecture. Use only within legal/ToS-safe boundaries. |
 | Loop Engineering | `C:\Users\manaz\.hermes\external-sources\loop-engineering` | `external/agent-sources/loop-engineering` | `b623b5f` | Designing safe recurring agent loops, triage loops, PR babysitters, CI sweepers, loop audits, cost checks, and stop conditions. |
+| Awesome n8n Templates | `C:\Users\manaz\.hermes\external-sources\awesome-n8n-templates` | `external/agent-sources/awesome-n8n-templates` | `2d78bc6` | n8n workflow templates, webhook/integration automation examples, no-code automation patterns, and workflow blueprint inspiration. |
+
+Note: the MAZos `awesome-n8n-templates` submodule uses a sparse checkout because the full repository contains Windows long-path template filenames. The full local clone is available for Hermes at `C:\Users\manaz\.hermes\external-sources\awesome-n8n-templates`.
 
 ## Unresolved Source
 
@@ -44,6 +47,7 @@ The accessible related repository is `https://github.com/alirezarezvani/claude-s
 6. For repeated/automated work, use Loop Engineering to define stop conditions, budget, run logs, and human gates.
 7. For large context/log-heavy work, consider Headroom first, but do not wrap agents automatically without user confirmation.
 8. For NVIDIA skills, verify the specific skill folder and signed-skill guidance before relying on it for GPU/Jetson/NeMo work.
+9. For n8n workflow design, use Awesome n8n Templates as examples only: read the README/category/template locally, adapt the pattern, configure credentials manually, and do not blindly activate imported workflows.
 
 ## Copy-Paste Hermes Prompt
 
@@ -60,9 +64,13 @@ Use them like this:
 - Claude Skills: use as a large library of reusable agent skills, commands, and role patterns. Read C:\Users\manaz\.hermes\external-sources\claude-skills\README.md and C:\Users\manaz\.hermes\external-sources\CLAUDE.alirezarezvani-claude-skills.md when designing agent workflows.
 - Maxun: use for browser automation and web extraction architecture. Keep it legal, consent-based, and ToS-aware. Do not use it for credential theft, private scraping, or bypassing access controls.
 - Loop Engineering: use whenever I ask for recurring automations, monitors, PR/CI loops, daily triage, dependency sweepers, or autonomous agent workflows. Start with C:\Users\manaz\.hermes\external-sources\loop-engineering\README.md and require stop conditions, budgets, run logs, and human gates.
+- Awesome n8n Templates: use when I ask for n8n workflows, no-code automations, webhook/integration flows, workflow templates, Zapier-style automations, or automation blueprints. Read C:\Users\manaz\.hermes\external-sources\awesome-n8n-templates\README.md and the relevant local category/template first. Adapt patterns; do not import credentials, skip manual credential review, or blindly activate workflows.
 
 MAZos repo records these sources as submodules under:
 C:\Users\manaz\Projects\mazos-ui\external\agent-sources
+
+Note: the n8n templates submodule in MAZos is sparse because the full repo has Windows long-path filenames. Use the full local Hermes clone for template files:
+C:\Users\manaz\.hermes\external-sources\awesome-n8n-templates
 
 Important: alirezarezvani/claude was not accessible from GitHub; use alirezarezvani/claude-skills and the installed CLAUDE.md instead.
 

@@ -38,11 +38,11 @@
   {
     "id": "external-agent-sources",
     "label": "External Agent Sources",
-    "description": "Use Headroom, Agent Reach, NVIDIA Skills, Claude Skills, Maxun, or Loop Engineering safely",
+    "description": "Use Headroom, Agent Reach, NVIDIA Skills, Claude Skills, Maxun, Loop Engineering, or n8n Templates safely",
     "category": "Agent",
     "danger_level": "safe",
     "action_type": "prompt",
-    "command_value": "Read research/mazos/HERMES_EXTERNAL_SOURCES.md, pick the smallest relevant installed external source, read its local README/SKILL.md, and refuse private scraping, auth bypass, or unbounded loops.",
+    "command_value": "Read research/mazos/HERMES_EXTERNAL_SOURCES.md, pick the smallest relevant installed external source, read its local README/SKILL.md, and refuse private scraping, auth bypass, unbounded loops, or blindly activated imported workflows.",
     "enabled": true,
     "requires_confirmation": false,
     "output_target": "research/mazos/HERMES_EXTERNAL_SOURCES.md"
