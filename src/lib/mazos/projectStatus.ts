@@ -25,6 +25,10 @@ export type ProjectStatus = {
   blocker: string;
   nextBestAction: string;
   evidencePathsRead: string[];
+  latestCommit: string | null;
+  currentBranch: string | null;
+  githubRemote: string | null;
+  verifyCommands: string[];
 };
 
 const PROJECT_INDEX = path.join(PATHS.obsidian, '03-MEMORY', 'PROJECT_INDEX.md');
@@ -135,6 +139,32 @@ function git(cwd: string, args: string[]) {
   return result.status === 0 ? result.stdout.trim() : '';
 }
 
+function normalizeRemote(url: string): string {
+  if (!url) return '';
+  // git@github.com:owner/repo.git -> https://github.com/owner/repo
+  return url
+    .replace(/^git@([^:]+):/, 'https://$1/')
+    .replace(/\.git$/, '')
+    .trim();
+}
+
+// Suggested verification commands for a repo: build/lint scripts if present, else a read-only status.
+function verifyCommandsFor(repoPath: string | null): string[] {
+  if (!repoPath) return [];
+  const cmds: string[] = [];
+  const pkgPath = path.join(/* turbopackIgnore: true */ repoPath, 'package.json');
+  if (fs.existsSync(/* turbopackIgnore: true */ pkgPath)) {
+    try {
+      const scripts = (JSON.parse(readMaybe(pkgPath))?.scripts || {}) as Record<string, string>;
+      if (scripts.lint) cmds.push('npm run lint');
+      if (scripts.build) cmds.push('npm run build');
+      if (scripts.test && !/no test specified/i.test(scripts.test)) cmds.push('npm test');
+    } catch { /* ignore malformed package.json */ }
+  }
+  cmds.push('git status --short');
+  return unique(cmds);
+}
+
 function summarizeCurrent(text: string, project: string) {
   const lines = text.split(/\r?\n/).map(x => x.trim()).filter(Boolean);
   const useful = lines.filter(line => /^[-*]\s+|\[[ x]\]|block|next|todo|current|priority|status|ship|done|fix/i.test(line));
@@ -228,6 +258,10 @@ export function latestProjectStatus(query: string): ProjectStatus {
       blocker: 'Project could not be resolved.',
       nextBestAction: 'Add the project to PROJECT_INDEX.md or 02-PROJECTS/<Project>/CURRENT.md, then rerun status.',
       evidencePathsRead: evidence,
+      latestCommit: null,
+      currentBranch: null,
+      githubRemote: null,
+      verifyCommands: [],
     };
   }
 
@@ -250,6 +284,9 @@ export function latestProjectStatus(query: string): ProjectStatus {
   const loopState = summarizeLoop(repoPath, evidence);
   const dirtyGroups = classifyDirty(gitStatus);
   const warnings = detectWarnings(loopState, gitStatus, missing);
+  const currentBranch = repoPath ? (git(repoPath, ['rev-parse', '--abbrev-ref', 'HEAD']) || null) : null;
+  const githubRemote = repoPath ? (normalizeRemote(git(repoPath, ['remote', 'get-url', 'origin'])) || null) : null;
+  const verifyCommands = verifyCommandsFor(repoPath);
 
   return {
     query,
@@ -265,5 +302,9 @@ export function latestProjectStatus(query: string): ProjectStatus {
     blocker: chooseBlocker(gitStatus, currentEntries, warnings),
     nextBestAction: chooseNext(latestCommits, gitStatus, currentEntries, missing, warnings),
     evidencePathsRead: unique(evidence),
+    latestCommit: latestCommits[0] || null,
+    currentBranch,
+    githubRemote,
+    verifyCommands,
   };
 }
