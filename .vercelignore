@@ -1,0 +1,22 @@
+# Local/generated runtime state
+data/
+research/
+tsconfig.tsbuildinfo
+
+# Large local reference repos; MAZos reads their registry docs locally, but the
+# hosted Vercel site should not upload these worktrees.
+external/
+
+# Local agent loop state
+.ralph/
+loop-run-log.md
+loop-budget.md
+STATE.md
+LOOP.md
+
+# Build/cache outputs
+.next/
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
