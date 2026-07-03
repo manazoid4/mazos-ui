@@ -54,6 +54,12 @@ npm run bridge
 
 The bridge listens on `http://127.0.0.1:3047` and proxies only `/api/mazos/*` to the local app. The hosted UI tries that bridge first when opened from Vercel, then falls back to hosted API data if the bridge is offline.
 
+To auto-start both local processes on Windows login, use the scheduled task:
+
+`MAZos Local Stack`
+
+It runs `scripts/start-mazos-local-stack.ps1`, which starts the local app and bridge only when ports `3046` or `3047` are not already listening.
+
 ## Configuration
 System state and skill definitions are maintained in YAML format. The React UI polls these configurations to reflect the current state of Hermes skills.
 
