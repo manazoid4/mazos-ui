@@ -6,6 +6,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "next dev",
+    "bridge": "node scripts/mazos-local-bridge.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "tsc --noEmit"
