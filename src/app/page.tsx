@@ -19,10 +19,38 @@ type ProjectStatus = { query:string; matchedProject:string|null; resolvedRepoPat
 type ToolRec = { id:string; name:string; kind:string; localPath:string; useWhen:string; safety:SafetyLevel; readFirst:string; matched:string[]; score:number };
 type ShipLogData = { generatedAt:string; days:{day:string;commits:{repo:string;day:string;hash:string;subject:string}[]}[]; counters:{commitsToday:number;commits7d:number;reposActive:number;runsOk:number;runsFail:number}; markdown:string };
 type Tab = 'NOW'|'LOOPS'|'PROJECTS'|'INTAKE'|'SYSTEM';
+type BridgeState = { checked:boolean; available:boolean; url:string; detail:string };
 
 const cats = ['Execute','Repos','Recall','JobFilter','Obsidian','System'];
 const TABS: Tab[] = ['NOW','LOOPS','PROJECTS','INTAKE','SYSTEM'];
+const LOCAL_BRIDGE = 'http://127.0.0.1:3047';
 function SafetyBadge({level}:{level:SafetyLevel}){ const s=SAFETY_LEVELS[level]; return <span className={`safety s${level}`} title={s.meaning}>{level} {s.label}</span> }
+function shouldUseLocalBridge() {
+  if (typeof window === 'undefined') return false;
+  return window.location.protocol === 'https:' && window.location.hostname.includes('vercel.app');
+}
+async function bridgeHealth(): Promise<BridgeState> {
+  if (!shouldUseLocalBridge()) return { checked:true, available:false, url:LOCAL_BRIDGE, detail:'Local app mode; bridge not needed.' };
+  try {
+    const res = await fetch(`${LOCAL_BRIDGE}/health`, { cache:'no-store', signal:AbortSignal.timeout(1200) });
+    if (!res.ok) throw new Error(`bridge returned ${res.status}`);
+    const body = await res.json();
+    return { checked:true, available:true, url:LOCAL_BRIDGE, detail:`Connected to ${body.target || 'local MAZos'}.` };
+  } catch (error) {
+    return { checked:true, available:false, url:LOCAL_BRIDGE, detail:error instanceof Error ? error.message : String(error) };
+  }
+}
+async function mazosFetch(path:string, init?:RequestInit) {
+  if (shouldUseLocalBridge()) {
+    try {
+      const res = await fetch(`${LOCAL_BRIDGE}${path}`, { ...init, cache:'no-store', signal:AbortSignal.timeout(30_000) });
+      if (res.ok) return res;
+    } catch {
+      // Fall back to hosted API so the page remains usable when the local bridge is off.
+    }
+  }
+  return fetch(path, init);
+}
 
 export default function Page() {
   const [data,setData]=useState<Data|null>(null), [vault,setVault]=useState<Vault|null>(null), [run,setRun]=useState<Run|null>(null), [busy,setBusy]=useState(''), [modal,setModal]=useState<{title:string;body:React.ReactNode}|null>(null);
@@ -34,30 +62,32 @@ export default function Page() {
   const [loops,setLoops]=useState<LoopState[]>([]); const [decisions,setDecisions]=useState<DecisionItem[]>([]);
   const [ship,setShip]=useState<ShipLogData|null>(null);
   const [paletteOpen,setPaletteOpen]=useState(false);
-  async function refresh(){ const [main,repos,health,runs]=await Promise.all([fetch('/api/mazos').then(r=>r.json()),fetch('/api/mazos/repos').then(r=>r.json()),fetch('/api/mazos/health').then(r=>r.json()),fetch('/api/mazos/runs?limit=8').then(r=>r.json())]); setData({...main, repos:repos.repos, services:health.services, runs:runs.runs, buttons:main.buttons||[]}); }
-  async function loadVault(){ const v=await fetch('/api/mazos/vault').then(r=>r.json()); setVault(v); return v; }
-  async function loadStatusDeck(){ const names=['JobFilter','Recall','MAZos','Vault']; const statuses=await Promise.all(names.map(name=>fetch(`/api/mazos/project-status?project=${encodeURIComponent(name)}`).then(r=>r.json()))); setStatusDeck(statuses.filter(x=>!x.error)); }
-  async function loadLoops(){ const r=await fetch('/api/mazos/loops').then(r=>r.json()); setLoops(r.loops||[]); }
-  async function loadDecisions(){ const r=await fetch('/api/mazos/decisions').then(r=>r.json()); setDecisions(r.decisions||[]); }
-  async function loadShip(){ const r=await fetch('/api/mazos/shiplog').then(r=>r.json()); setShip(r); }
-  async function loopEvent(loopId:string, type:string, extra:Record<string,string>={}){ const r=await fetch('/api/mazos/loops',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({loopId,type,...extra})}).then(r=>r.json()); if(r.loops) setLoops(r.loops); if(type==='gate') loadDecisions(); }
-  async function resolveDecision(id:string, status:string, resolution:string){ const r=await fetch('/api/mazos/decisions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'resolve',id,status,resolution})}).then(r=>r.json()); if(r.decisions){ setDecisions(r.decisions); const item=(r.decisions as DecisionItem[]).find(d=>d.id===id); if(item) setModal({title:'Resolution prompt · paste to the waiting agent',body:<CopyBlock text={buildResolutionPrompt(item)}/>}); } }
-  async function addDecision(question:string, context:string){ const r=await fetch('/api/mazos/decisions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'open',source:'manual',question,context})}).then(r=>r.json()); if(r.decisions) setDecisions(r.decisions); }
-  async function routeTool(){ if(!routerTask.trim())return; setRouterBusy(true); const r=await fetch(`/api/mazos/tool-router?task=${encodeURIComponent(routerTask)}`).then(r=>r.json()); setRouterRecs(r.recommendations||[]); setRouterBusy(false); }
-  useEffect(()=>{ document.documentElement.dataset.theme='dark'; const saved=localStorage.getItem('mazos-tab') as Tab|null; if(saved&&TABS.includes(saved)) setTab(saved); refresh(); loadVault(); loadStatusDeck(); loadLoops(); loadDecisions(); loadShip(); const t=setInterval(()=>setClock(new Date().toLocaleTimeString()),1000); return()=>clearInterval(t); },[]);
+  const [bridge,setBridge]=useState<BridgeState>({checked:false,available:false,url:LOCAL_BRIDGE,detail:'Checking local bridge...'});
+  async function refresh(){ const [main,repos,health,runs]=await Promise.all([mazosFetch('/api/mazos').then(r=>r.json()),mazosFetch('/api/mazos/repos').then(r=>r.json()),mazosFetch('/api/mazos/health').then(r=>r.json()),mazosFetch('/api/mazos/runs?limit=8').then(r=>r.json())]); setData({...main, repos:repos.repos, services:health.services, runs:runs.runs, buttons:main.buttons||[]}); }
+  async function loadVault(){ const v=await mazosFetch('/api/mazos/vault').then(r=>r.json()); setVault(v); return v; }
+  async function loadStatusDeck(){ const names=['JobFilter','Recall','MAZos','Vault']; const statuses=await Promise.all(names.map(name=>mazosFetch(`/api/mazos/project-status?project=${encodeURIComponent(name)}`).then(r=>r.json()))); setStatusDeck(statuses.filter(x=>!x.error)); }
+  async function loadLoops(){ const r=await mazosFetch('/api/mazos/loops').then(r=>r.json()); setLoops(r.loops||[]); }
+  async function loadDecisions(){ const r=await mazosFetch('/api/mazos/decisions').then(r=>r.json()); setDecisions(r.decisions||[]); }
+  async function loadShip(){ const r=await mazosFetch('/api/mazos/shiplog').then(r=>r.json()); setShip(r); }
+  async function loopEvent(loopId:string, type:string, extra:Record<string,string>={}){ const r=await mazosFetch('/api/mazos/loops',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({loopId,type,...extra})}).then(r=>r.json()); if(r.loops) setLoops(r.loops); if(type==='gate') loadDecisions(); }
+  async function resolveDecision(id:string, status:string, resolution:string){ const r=await mazosFetch('/api/mazos/decisions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'resolve',id,status,resolution})}).then(r=>r.json()); if(r.decisions){ setDecisions(r.decisions); const item=(r.decisions as DecisionItem[]).find(d=>d.id===id); if(item) setModal({title:'Resolution prompt · paste to the waiting agent',body:<CopyBlock text={buildResolutionPrompt(item)}/>}); } }
+  async function addDecision(question:string, context:string){ const r=await mazosFetch('/api/mazos/decisions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'open',source:'manual',question,context})}).then(r=>r.json()); if(r.decisions) setDecisions(r.decisions); }
+  async function routeTool(){ if(!routerTask.trim())return; setRouterBusy(true); const r=await mazosFetch(`/api/mazos/tool-router?task=${encodeURIComponent(routerTask)}`).then(r=>r.json()); setRouterRecs(r.recommendations||[]); setRouterBusy(false); }
+  useEffect(()=>{ document.documentElement.dataset.theme='dark'; const saved=localStorage.getItem('mazos-tab') as Tab|null; if(saved&&TABS.includes(saved)) setTab(saved); bridgeHealth().then(setBridge); refresh(); loadVault(); loadStatusDeck(); loadLoops(); loadDecisions(); loadShip(); const t=setInterval(()=>setClock(new Date().toLocaleTimeString()),1000); return()=>clearInterval(t); },[]);
   useEffect(()=>{ localStorage.setItem('mazos-tab',tab); },[tab]);
   useEffect(()=>{ const h=(e:KeyboardEvent)=>{ if((e.ctrlKey&&e.key.toLowerCase()==='k')||(e.key==='/'&&!(e.target as HTMLElement).closest('input,textarea,select'))){ e.preventDefault(); setPaletteOpen(o=>!o); } if(e.key==='Escape') setPaletteOpen(false); }; window.addEventListener('keydown',h); return()=>window.removeEventListener('keydown',h); },[]);
   const summary=useMemo(()=> data ? { existing:data.repos.filter(r=>r.exists).length, dirty:data.repos.filter(r=>r.dirty).length, optionalDown:data.services.filter(s=>!s.online&&s.signal==='not-running').length, critical:data.services.filter(s=>!s.online&&s.signal!=='not-running').length } : null,[data]);
   const findings=useMemo(()=> data?computeStaleFindings(data.repos):[],[data]);
   const openDecisions=decisions.filter(d=>d.status==='open');
-  async function runAction(id:string){ setBusy(id); const r=await fetch('/api/mazos/action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})}).then(r=>r.json()); setRun(r); setBusy(''); setModal({title:r.label, body:<Result r={r}/>}); refresh(); }
-  async function loadProjectStatus(){ setBusy('project-status'); const r=await fetch(`/api/mazos/project-status?project=${encodeURIComponent(projectQuery)}`).then(r=>r.json()); setBusy(''); if(r.error){ setModal({title:'Project Status',body:r.error}); return; } setProjectStatus(r); }
-  async function loadContextPack(project:string){ setBusy('context-pack'); const r=await fetch(`/api/mazos/context-pack?project=${encodeURIComponent(project)}`).then(r=>r.json()); setBusy(''); if(r.error){ setModal({title:'Context Pack',body:r.error}); return; } setModal({title:`Context Pack · ${r.project} · ${r.lines} lines`,body:<div><CopyBlock text={r.markdown}/><p className="muted">Saved: {r.savedTo}</p></div>}); }
-  async function doIngest(){ setBusy('ingest'); const fd=new FormData(); Object.entries(ingest).forEach(([k,v])=>fd.append(k,v)); Array.from(files||[]).forEach(f=>fd.append('files',f)); const r=await fetch('/api/mazos/ingest',{method:'POST',body:fd}).then(r=>r.json()); const now=new Date().toISOString(); const rr={success:!!r.success,actionId:'ingest_urls',label:'Ingest Intake',cwd:'api',commandPreview:'POST /api/mazos/ingest',stdout:JSON.stringify(r,null,2),stderr:r.error||'',exitCode:r.success?0:1,startedAt:now,finishedAt:now,durationMs:0,nextSuggestedAction:r.queued?'Open Intake Queue and process queued sources.':'Review routed sources in Recall.'}; setRun(rr); setBusy(''); setModal({title:'Intake Result',body:<Result r={rr}/>}); refresh(); }
+  async function runAction(id:string){ setBusy(id); const r=await mazosFetch('/api/mazos/action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})}).then(r=>r.json()); setRun(r); setBusy(''); setModal({title:r.label, body:<Result r={r}/>}); refresh(); }
+  async function loadProjectStatus(){ setBusy('project-status'); const r=await mazosFetch(`/api/mazos/project-status?project=${encodeURIComponent(projectQuery)}`).then(r=>r.json()); setBusy(''); if(r.error){ setModal({title:'Project Status',body:r.error}); return; } setProjectStatus(r); }
+  async function loadContextPack(project:string){ setBusy('context-pack'); const r=await mazosFetch(`/api/mazos/context-pack?project=${encodeURIComponent(project)}`).then(r=>r.json()); setBusy(''); if(r.error){ setModal({title:'Context Pack',body:r.error}); return; } setModal({title:`Context Pack · ${r.project} · ${r.lines} lines`,body:<div><CopyBlock text={r.markdown}/><p className="muted">Saved: {r.savedTo}</p></div>}); }
+  async function doIngest(){ setBusy('ingest'); const fd=new FormData(); Object.entries(ingest).forEach(([k,v])=>fd.append(k,v)); Array.from(files||[]).forEach(f=>fd.append('files',f)); const r=await mazosFetch('/api/mazos/ingest',{method:'POST',body:fd}).then(r=>r.json()); const now=new Date().toISOString(); const rr={success:!!r.success,actionId:'ingest_urls',label:'Ingest Intake',cwd:'api',commandPreview:'POST /api/mazos/ingest',stdout:JSON.stringify(r,null,2),stderr:r.error||'',exitCode:r.success?0:1,startedAt:now,finishedAt:now,durationMs:0,nextSuggestedAction:r.queued?'Open Intake Queue and process queued sources.':'Review routed sources in Recall.'}; setRun(rr); setBusy(''); setModal({title:'Intake Result',body:<Result r={rr}/>}); refresh(); }
   if(!data||!summary) return <main className="shell"><div className="boot">MAZ_OS :: BOOTING COCKPIT…</div></main>;
   const byCat=Object.fromEntries(cats.map(c=>[c,data.buttons.filter(b=>b.category===c)])); const last=run||data.runs?.[0];
   return <main className="shell"><div className="gridGlow" />
     <header className="topbar"><div><p className="eyebrow">JARVIS-LITE LOCAL OPS</p><h1>MAZOS COCKPIT</h1><p className="mission">{data.mission}</p></div><div className="topStats"><b>{clock}</b><span>{summary.existing}/{data.repos.length} repos</span><span>{summary.dirty} dirty</span><span>{summary.optionalDown} optional off</span><span>{summary.critical} critical</span></div></header>
+    <BridgeBanner bridge={bridge} refreshBridge={()=>bridgeHealth().then(setBridge)}/>
     <nav className="tabs">{TABS.map(t=><button key={t} className={`tabBtn ${tab===t?'active':''}`} onClick={()=>setTab(t)}>{t}{t==='LOOPS'&&openDecisions.length>0&&<span className="tabBadge">{openDecisions.length}</span>}</button>)}<button className="tabBtn paletteHint" onClick={()=>setPaletteOpen(true)}>⌘ Ctrl+K</button></nav>
 
     {tab==='NOW'&&<>
@@ -111,6 +141,16 @@ export default function Page() {
 }
 
 function CopyBlock({text}:{text:string}){ return <div><button className="ghost wide" onClick={()=>navigator.clipboard.writeText(text)}>Copy to clipboard</button><pre>{text}</pre></div>; }
+function BridgeBanner({bridge,refreshBridge}:{bridge:BridgeState;refreshBridge:()=>void}){
+  const hosted = shouldUseLocalBridge();
+  if (!hosted) return <div className="bridgeBanner local"><b>Local mode</b><span>MAZos is running on this PC and can read Windows repo/vault paths directly.</span></div>;
+  return <div className={`bridgeBanner ${bridge.available?'on':'off'}`}>
+    <div><b>{bridge.available?'Local bridge connected':'Hosted mode needs local bridge'}</b><span>{bridge.available?bridge.detail:'Start local MAZos and the bridge to let this Vercel site read C:\\Users\\manaz paths.'}</span></div>
+    <code>npm run dev -- -p 3046</code>
+    <code>npm run bridge</code>
+    <button className="ghost" onClick={refreshBridge}>Recheck</button>
+  </div>;
+}
 
 function CommandPalette({actions,loops,projects,close,exec}:{actions:Action[];loops:LoopState[];projects:ProjectStatus[];close:()=>void;exec:{runAction:(id:string)=>void;setTab:(t:Tab)=>void;openLoopPrompt:(l:LoopState)=>void}}){
   const [q,setQ]=useState(''); const [sel,setSel]=useState(0); const inputRef=useRef<HTMLInputElement>(null);

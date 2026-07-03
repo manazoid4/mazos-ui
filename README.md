@@ -39,6 +39,21 @@ npm start
 ```
 UI available at `http://localhost:9999` (default).
 
+## Hosted Vercel + Local Windows Bridge
+
+The hosted site can run at:
+
+`https://mazos-command-centre.vercel.app`
+
+Vercel cannot directly read `C:\Users\manaz\...` paths from the cloud. To let the hosted site use local repo/vault data, run MAZos locally and start the bridge:
+
+```bash
+npm run dev -- -p 3046
+npm run bridge
+```
+
+The bridge listens on `http://127.0.0.1:3047` and proxies only `/api/mazos/*` to the local app. The hosted UI tries that bridge first when opened from Vercel, then falls back to hosted API data if the bridge is offline.
+
 ## Configuration
 System state and skill definitions are maintained in YAML format. The React UI polls these configurations to reflect the current state of Hermes skills.
 
