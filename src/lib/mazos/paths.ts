@@ -18,6 +18,7 @@ export const PATHS = {
   jobfilter: 'C:/Users/manaz/Desktop/JobFilterV1',
   jobfilter_alt: 'C:/Users/manaz/Projects/JobFilterV1',
   openflowkit: 'C:/Users/manaz/Projects/openflowkit',
+  openflowkit_alt: 'C:/Users/manaz/Desktop/openflowkit',
   obsidian: 'C:/Users/manaz/Desktop/Obsidian Main Vault',
   jobfilter_vault: 'C:/Users/manaz/JobFilter-Obsidian-Vault',
 } as const;

@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { rankWhatNow } from '@/lib/mazos/commandCentre';
 import { buildHandoff } from '@/lib/mazos/handoff';
 import { SAFETY_LEVELS, type SafetyLevel } from '@/lib/mazos/safety';
 import { buildLoopPrompt, type LoopState, type LoopStopReason } from '@/lib/mazos/loopEngine';
@@ -18,6 +17,8 @@ type DirtyGroups = Record<'app'|'generated'|'submodule'|'docs'|'unknown', string
 type ProjectStatus = { query:string; matchedProject:string|null; resolvedRepoPath:string|null; missing:string[]; latestCommits:string[]; gitStatus:string[]; dirtyGroups:DirtyGroups; currentEntries:string[]; loopState:string[]; warnings:string[]; blocker:string; nextBestAction:string; evidencePathsRead:string[]; latestCommit:string|null; currentBranch:string|null; githubRemote:string|null; verifyCommands:string[] };
 type ToolRec = { id:string; name:string; kind:string; localPath:string; useWhen:string; safety:SafetyLevel; readFirst:string; matched:string[]; score:number };
 type ShipLogData = { generatedAt:string; days:{day:string;commits:{repo:string;day:string;hash:string;subject:string}[]}[]; counters:{commitsToday:number;commits7d:number;reposActive:number;runsOk:number;runsFail:number}; markdown:string };
+type SpineRow = { product:string; productId:string; objective:string; nextAction:string; actionSource:string; commercialReason:string; evidence:string[]; evidencePaths:string[]; blocker:string; blocked:boolean; safety:SafetyLevel; owner:string; doneCriteria:string[]; moneyLabel:'high'|'medium'|'low'; score:number; repoPath:string|null; branch:string|null; github:string|null; dirty:number; commits7d:number; staleFindings:{severity:string;title:string}[]; openDecisions:{id:string;question:string}[]; handoffPrompt:string };
+type SpineData = { generatedAt:string; verdict:{product:string;action:string;why:string;owner:string;safety:SafetyLevel}; rows:SpineRow[]; savedTo:string; markdown:string };
 type Tab = 'NOW'|'LOOPS'|'PROJECTS'|'INTAKE'|'SYSTEM';
 type BridgeState = { checked:boolean; available:boolean; url:string; detail:string };
 
@@ -61,6 +62,7 @@ export default function Page() {
   const [tab,setTab]=useState<Tab>('NOW');
   const [loops,setLoops]=useState<LoopState[]>([]); const [decisions,setDecisions]=useState<DecisionItem[]>([]);
   const [ship,setShip]=useState<ShipLogData|null>(null);
+  const [spine,setSpine]=useState<SpineData|null>(null);
   const [paletteOpen,setPaletteOpen]=useState(false);
   const [bridge,setBridge]=useState<BridgeState>({checked:false,available:false,url:LOCAL_BRIDGE,detail:'Checking local bridge...'});
   async function refresh(){ const [main,repos,health,runs]=await Promise.all([mazosFetch('/api/mazos').then(r=>r.json()),mazosFetch('/api/mazos/repos').then(r=>r.json()),mazosFetch('/api/mazos/health').then(r=>r.json()),mazosFetch('/api/mazos/runs?limit=8').then(r=>r.json())]); setData({...main, repos:repos.repos, services:health.services, runs:runs.runs, buttons:main.buttons||[]}); }
@@ -69,11 +71,12 @@ export default function Page() {
   async function loadLoops(){ const r=await mazosFetch('/api/mazos/loops').then(r=>r.json()); setLoops(r.loops||[]); }
   async function loadDecisions(){ const r=await mazosFetch('/api/mazos/decisions').then(r=>r.json()); setDecisions(r.decisions||[]); }
   async function loadShip(){ const r=await mazosFetch('/api/mazos/shiplog').then(r=>r.json()); setShip(r); }
+  async function loadSpine(){ try{ const r=await mazosFetch('/api/mazos/shipping-spine').then(r=>r.json()); if(!r.error) setSpine(r); }catch{ /* spine loads lazily; NOW view shows loading state */ } }
   async function loopEvent(loopId:string, type:string, extra:Record<string,string>={}){ const r=await mazosFetch('/api/mazos/loops',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({loopId,type,...extra})}).then(r=>r.json()); if(r.loops) setLoops(r.loops); if(type==='gate') loadDecisions(); }
   async function resolveDecision(id:string, status:string, resolution:string){ const r=await mazosFetch('/api/mazos/decisions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'resolve',id,status,resolution})}).then(r=>r.json()); if(r.decisions){ setDecisions(r.decisions); const item=(r.decisions as DecisionItem[]).find(d=>d.id===id); if(item) setModal({title:'Resolution prompt · paste to the waiting agent',body:<CopyBlock text={buildResolutionPrompt(item)}/>}); } }
   async function addDecision(question:string, context:string){ const r=await mazosFetch('/api/mazos/decisions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'open',source:'manual',question,context})}).then(r=>r.json()); if(r.decisions) setDecisions(r.decisions); }
   async function routeTool(){ if(!routerTask.trim())return; setRouterBusy(true); const r=await mazosFetch(`/api/mazos/tool-router?task=${encodeURIComponent(routerTask)}`).then(r=>r.json()); setRouterRecs(r.recommendations||[]); setRouterBusy(false); }
-  useEffect(()=>{ document.documentElement.dataset.theme='dark'; const saved=localStorage.getItem('mazos-tab') as Tab|null; if(saved&&TABS.includes(saved)) setTab(saved); bridgeHealth().then(setBridge); refresh(); loadVault(); loadStatusDeck(); loadLoops(); loadDecisions(); loadShip(); const t=setInterval(()=>setClock(new Date().toLocaleTimeString()),1000); return()=>clearInterval(t); },[]);
+  useEffect(()=>{ document.documentElement.dataset.theme='dark'; const saved=localStorage.getItem('mazos-tab') as Tab|null; if(saved&&TABS.includes(saved)) setTab(saved); bridgeHealth().then(setBridge); refresh(); loadVault(); loadStatusDeck(); loadLoops(); loadDecisions(); loadShip(); loadSpine(); const t=setInterval(()=>setClock(new Date().toLocaleTimeString()),1000); return()=>clearInterval(t); },[]);
   useEffect(()=>{ localStorage.setItem('mazos-tab',tab); },[tab]);
   useEffect(()=>{ const h=(e:KeyboardEvent)=>{ if((e.ctrlKey&&e.key.toLowerCase()==='k')||(e.key==='/'&&!(e.target as HTMLElement).closest('input,textarea,select'))){ e.preventDefault(); setPaletteOpen(o=>!o); } if(e.key==='Escape') setPaletteOpen(false); }; window.addEventListener('keydown',h); return()=>window.removeEventListener('keydown',h); },[]);
   const summary=useMemo(()=> data ? { existing:data.repos.filter(r=>r.exists).length, dirty:data.repos.filter(r=>r.dirty).length, optionalDown:data.services.filter(s=>!s.online&&s.signal==='not-running').length, critical:data.services.filter(s=>!s.online&&s.signal!=='not-running').length } : null,[data]);
@@ -91,7 +94,7 @@ export default function Page() {
     <nav className="tabs">{TABS.map(t=><button key={t} className={`tabBtn ${tab===t?'active':''}`} onClick={()=>setTab(t)}>{t}{t==='LOOPS'&&openDecisions.length>0&&<span className="tabBadge">{openDecisions.length}</span>}</button>)}<button className="tabBtn paletteHint" onClick={()=>setPaletteOpen(true)}>⌘ Ctrl+K</button></nav>
 
     {tab==='NOW'&&<>
-      <WhatNow data={data} summary={summary} statuses={statusDeck} run={runAction}/>
+      <SpinePanel spine={spine} run={runAction} open={setModal} reload={loadSpine}/>
       <section className="split">
         <Panel title="Loop Status" badge="control tower · click for deck"><div className="loopStrip">{loops.map(l=><button key={l.def.id} className={`loopChip ${l.status}`} onClick={()=>setTab('LOOPS')}><b>{l.def.name}</b><small>{l.status}{l.status!=='idle'?` · ${l.iteration}/${l.def.maxIterations} it · ${l.budgetUsedMinutes}/${l.def.budgetMinutes}m`:''}{l.stopReason?` · ${l.stopReason}`:''}</small></button>)}{loops.length===0&&<p className="muted">Loading loops…</p>}</div></Panel>
         <Panel title="Stale Work Radar" badge={`${findings.length} finding(s) · read-only`}>{findings.length===0?<p className="muted">Nothing stale. All trees clean and pushed.</p>:<div className="findings">{findings.slice(0,3).map((f,i)=><StaleRow key={i} f={f} repos={data.repos} open={setModal}/>)}</div>}{findings.length>3&&<button className="ghost wide" onClick={()=>setTab('PROJECTS')}>All {findings.length} findings → PROJECTS</button>}</Panel>
@@ -239,20 +242,49 @@ function StaleRow({f,repos,open}:{f:StaleFinding;repos:Repo[];open:(m:{title:str
   </div>;
 }
 
-function WhatNow({data,summary,statuses,run}:{data:Data;summary:{dirty:number;critical:number;optionalDown:number;existing:number};statuses:ProjectStatus[];run:(id:string)=>void}){
-  const ranked=useMemo(()=>rankWhatNow(statuses),[statuses]);
-  const top=ranked[0];
-  const commits=statuses.reduce((n,s)=>n+s.latestCommits.length,0);
-  return <Panel title="What Now" badge="ranked · urgency·blocker·money·freshness">
-    <div style={{display:'grid',gridTemplateColumns:'1.25fr .75fr',gap:16}}>
-      <section>
-        <div className="recommend">{top?.reason || 'Check JobFilter, Recall, then MAZos before starting new work.'}</div>
-        <p className="muted">Top priority: <b>{top?.project || 'loading'}</b>{top?<> · score {top.score} (money {top.factors.money} · urgency {top.factors.urgency} · blocker {top.factors.blocker} · fresh {top.factors.freshness})</>:''} · {commits} commit(s)/24h · {summary.dirty} dirty repo(s) · <SafetyBadge level="L1"/> stays on.</p>
-        <div className="chips"><button className="primary" style={{width:'auto',minWidth:190}} onClick={()=>run('continue_important_task')}>Get next action prompt</button><button className="ghost" onClick={()=>location.href='/focus'}><b>Focus sprint</b><small>45 min, accountable</small></button><button className="ghost" onClick={()=>run('daily_triage_l1')}><b>Daily Triage L1</b><small>report-only</small></button><button className="ghost" onClick={()=>run('repo_health_scan')}><b>Repo status</b><small>read-only summary</small></button><button className="ghost" onClick={()=>run('github_update_report')}><b>GitHub report prompt</b><small>no push</small></button></div>
-      </section>
-      <section><h3>Priority stack</h3><ol className="rankList">{ranked.map((r,i)=><li key={r.project}><span className="rankRow"><b>{i+1}. {r.project}</b><span className={`money ${r.moneyLabel}`}>{r.moneyLabel}</span></span><small>{r.reason}</small><small className="dim">score {r.score}</small></li>)}</ol></section>
+function SpinePanel({spine,run,open,reload}:{spine:SpineData|null;run:(id:string)=>void;open:(m:{title:string;body:React.ReactNode})=>void;reload:()=>void}){
+  if(!spine) return <Panel title="Shipping Spine" badge="combining evidence…"><p className="muted">Reading project status, ship log, stale radar, decisions, playbooks…</p></Panel>;
+  const v=spine.verdict; const topRow=spine.rows.find(r=>r.product===v.product);
+  return <Panel title="Shipping Spine" badge={`objective · next · evidence · owner — snapshot ${new Date(spine.generatedAt).toLocaleTimeString()}`}>
+    <div className="spineVerdict">
+      <div>
+        <p className="eyebrow">SHIP NEXT</p>
+        <h3>{v.product} — {v.action}</h3>
+        <p className="muted">Why: {v.why}</p>
+        <p className="muted">Owner <b>{v.owner}</b> · <SafetyBadge level={v.safety}/> · agents can read <code>/api/mazos/shipping-spine</code> or {spine.savedTo.split(/[\\/]/).slice(-1)[0]}</p>
+      </div>
+      <div className="chips spineVerdictBtns">
+        {topRow&&<button className="primary hot" onClick={()=>{navigator.clipboard.writeText(topRow.handoffPrompt); open({title:`Handoff · ${topRow.product} · ${v.owner}`,body:<CopyBlock text={topRow.handoffPrompt}/>});}}>COPY HANDOFF</button>}
+        <button className="ghost" onClick={()=>open({title:'Shipping Spine · agent snapshot',body:<CopyBlock text={spine.markdown}/>})}>Agent snapshot</button>
+        <button className="ghost" onClick={reload}>Recompute</button>
+      </div>
+    </div>
+    <div className="spineRows">{spine.rows.map(r=><SpineRowCard key={r.productId} r={r} open={open}/>)}</div>
+    <div className="chips spineFooter">
+      <button className="ghost" onClick={()=>run('continue_important_task')}><b>Next action prompt</b><small>from cockpit</small></button>
+      <button className="ghost" onClick={()=>location.href='/focus'}><b>Focus sprint</b><small>45 min, accountable</small></button>
+      <button className="ghost" onClick={()=>run('daily_triage_l1')}><b>Daily Triage L1</b><small>report-only</small></button>
+      <button className="ghost" onClick={()=>run('repo_health_scan')}><b>Repo status</b><small>read-only</small></button>
+      <button className="ghost" onClick={()=>run('github_update_report')}><b>GitHub report prompt</b><small>no push</small></button>
     </div>
   </Panel>;
+}
+function SpineRowCard({r,open}:{r:SpineRow;open:(m:{title:string;body:React.ReactNode})=>void}){
+  return <article className={`spineRow ${r.blocked?'blockedRow':''}`}>
+    <div className="repoTop"><h3>{r.product}</h3><span className="rowTags"><span className={`money ${r.moneyLabel}`}>{r.moneyLabel}</span><span className="tag">{r.owner}</span><SafetyBadge level={r.safety}/>{r.blocked&&<span className="tag blockedTag">BLOCKED</span>}</span></div>
+    <small className="muted">{r.objective}</small>
+    <p className="spineNext"><b>NEXT:</b> {r.nextAction} <span className="dim">({r.actionSource})</span></p>
+    <p><b>WHY:</b> {r.commercialReason}</p>
+    <p className={r.blocked?'bad inline':'muted'}><b>BLOCKER:</b> {r.blocker}</p>
+    <ul className="summaryList spineEv">{r.evidence.slice(0,3).map((e,i)=><li key={i}>{e}</li>)}</ul>
+    <small className="dim">score {r.score} · {r.commits7d} commit(s)/7d · {r.dirty} dirty{r.branch?` · ${r.branch}`:''}</small>
+    <div className="chips">
+      <button className="ghost" onClick={()=>{navigator.clipboard.writeText(r.handoffPrompt); open({title:`Handoff · ${r.product} · ${r.owner}`,body:<CopyBlock text={r.handoffPrompt}/>});}}>Handoff</button>
+      <button className="ghost" onClick={()=>open({title:`${r.product} · done when`,body:<ul className="summaryList">{r.doneCriteria.map(d=><li key={d}>{d}</li>)}</ul>})}>Done when</button>
+      <button className="ghost" onClick={()=>open({title:`${r.product} · evidence paths`,body:<ul className="summaryList">{r.evidencePaths.length?r.evidencePaths.map(p=><li key={p}>{p}</li>):<li>No evidence paths recorded.</li>}</ul>})}>Evidence</button>
+      {r.github&&<button className="ghost" onClick={()=>open({title:`${r.product} GitHub`,body:r.github})}>GitHub</button>}
+    </div>
+  </article>;
 }
 function ToolRouterPanel({task,setTask,recs,busy,route,open}:{task:string;setTask:(v:string)=>void;recs:ToolRec[];busy:boolean;route:()=>void;open:(m:{title:string;body:React.ReactNode})=>void}){
   return <Panel title="Tool Router" badge="which source to consult · why">

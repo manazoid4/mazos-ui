@@ -11,7 +11,7 @@ const REPOS = [
   { label: 'MAZos UI', path: PATHS.mazos_ui },
   { label: 'Recall', path: PATHS.recall },
   { label: 'JobFilter', path: fs.existsSync(PATHS.jobfilter) ? PATHS.jobfilter : PATHS.jobfilter_alt },
-  { label: 'OpenFlowKit', path: PATHS.openflowkit },
+  { label: 'OpenFlowKit', path: fs.existsSync(PATHS.openflowkit) ? PATHS.openflowkit : PATHS.openflowkit_alt },
 ];
 
 type Commit = { repo: string; day: string; hash: string; subject: string };
