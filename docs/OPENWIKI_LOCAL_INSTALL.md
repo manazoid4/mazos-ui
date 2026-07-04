@@ -11,6 +11,7 @@ Updated: 2026-07-04
 - Installed app: `C:\Users\manaz\AppData\Local\OpenWiki\OpenWiki.exe`
 - Local database: `C:\Users\manaz\AppData\Roaming\com.openwiki.app\openwiki.db`
 - Windows scheduled task: `OpenWiki Local Knowledge App`
+- Scheduled-task starter script: `C:\Users\manaz\.hermes\openwiki\start-openwiki.ps1`
 - Installed version: `v0.3.17`
 - Release digest verified for `OpenWiki_0.3.17_x64-setup.exe`:
   `4c0fef09009f2a59c1a29270bd69864fa98fef469b528f7005af53aea944d22d`
@@ -82,6 +83,7 @@ Completed:
 - Added MAZos submodule entry.
 - Added MCP config for Claude Desktop, OpenClaw, and Codex.
 - Added Windows logon task `OpenWiki Local Knowledge App`.
+- The task runs `C:\Users\manaz\.hermes\openwiki\start-openwiki.ps1`, which exits successfully if OpenWiki is already running and starts it otherwise.
 - Seeded OpenWiki with three wiki pages:
   - `OpenWiki Local Install and Agent Access`
   - `MAZos Agent Access and Market-Breaker Roadmap`

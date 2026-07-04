@@ -13,6 +13,7 @@ OpenWiki is installed and available as a local-first knowledge capture/wiki sour
 - App executable: `C:\Users\manaz\AppData\Local\OpenWiki\OpenWiki.exe`
 - SQLite database: `C:\Users\manaz\AppData\Roaming\com.openwiki.app\openwiki.db`
 - Windows scheduled task: `OpenWiki Local Knowledge App`
+- Scheduled-task starter script: `C:\Users\manaz\.hermes\openwiki\start-openwiki.ps1`
 
 ## Agent Access
 
