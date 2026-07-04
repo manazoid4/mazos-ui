@@ -251,7 +251,7 @@ function SpinePanel({spine,run,open,reload}:{spine:SpineData|null;run:(id:string
         <p className="eyebrow">SHIP NEXT</p>
         <h3>{v.product} — {v.action}</h3>
         <p className="muted">Why: {v.why}</p>
-        <p className="muted">Owner <b>{v.owner}</b> · <SafetyBadge level={v.safety}/> · agents can read <code>/api/mazos/shipping-spine</code> or {spine.savedTo.split(/[\\/]/).slice(-1)[0]}</p>
+        <p className="muted">Owner <b>{v.owner}</b> · <SafetyBadge level={v.safety}/> · agents can read <code>/api/mazos/shipping-spine</code>{spine.savedTo?<> or {spine.savedTo.split(/[\\/]/).slice(-1)[0]}</>:null}</p>
       </div>
       <div className="chips spineVerdictBtns">
         {topRow&&<button className="primary hot" onClick={()=>{navigator.clipboard.writeText(topRow.handoffPrompt); open({title:`Handoff · ${topRow.product} · ${v.owner}`,body:<CopyBlock text={topRow.handoffPrompt}/>});}}>COPY HANDOFF</button>}
