@@ -49,3 +49,6 @@
 [submodule "external/agent-sources/penpot"]
 	path = external/agent-sources/penpot
 	url = https://github.com/penpot/penpot.git
+[submodule "external/agent-sources/openwiki"]
+	path = external/agent-sources/openwiki
+	url = https://github.com/kdsz001/OpenWiki.git
