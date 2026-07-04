@@ -8,5 +8,10 @@
 - Append dated sections to decisions/tasks; do not overwrite notes unless backed up.
 - Prefer targeted grep/search over loading huge files.
 - GitHub update rule: before handoff, run status/build, commit/push when changes are intended, show direct repo URL.
-- MazOS localhost default: `http://localhost:3044` unless port occupied.
+- MAZos local app: `http://127.0.0.1:3046`.
+- Hosted MAZos: `https://mazos-command-centre.vercel.app`.
+- Hosted-to-local bridge: `http://127.0.0.1:3047`, proxies only `/api/mazos/*` to the local app so the hosted site can read Windows-local repo/vault paths.
+- Windows scheduled task: `MAZos Local Stack`. It runs at user logon and starts both the local app and bridge if ports `3046`/`3047` are not already listening.
+- To start manually from `C:/Users/manaz/Projects/mazos-ui`: run `npm run dev -- -p 3046` and `npm run bridge`.
+- Agent access check: `GET http://127.0.0.1:3047/health`, then `GET http://127.0.0.1:3047/api/mazos/repos`.
 - Relevant external ref: `https://github.com/witt3rd/oh-my-hermes` for Hermes state-file/plugin patterns.
