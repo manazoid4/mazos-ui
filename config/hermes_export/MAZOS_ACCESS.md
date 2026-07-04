@@ -48,6 +48,16 @@ GET http://127.0.0.1:3047/api/mazos/repos
 
 If both return 200, MAZos hosted/local access is working.
 
+## Shipping Spine (handoff context)
+
+For "what should be shipped next" across JobFilter, Recall, OpenFlowKit, and MAZos — with evidence, blockers, owners, and ready handoff prompts:
+
+```text
+GET http://127.0.0.1:3047/api/mazos/shipping-spine
+```
+
+A markdown snapshot is also written to `data/mazos/shipping-spine.md` on every build. Agents should read the spine before asking what to work on.
+
 ## Safety
 
 - Do not expose the bridge beyond `127.0.0.1`.

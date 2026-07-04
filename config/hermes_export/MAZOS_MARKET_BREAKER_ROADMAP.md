@@ -28,7 +28,9 @@ Everything that does not help answer those questions should be treated as second
 
 ## Next Five Features
 
-### 1. Shipping Spine
+### 1. Shipping Spine — SHIPPED (v1, 2026-07-04)
+
+Live: `/api/mazos/shipping-spine` + first-viewport panel on NOW. Snapshot: `data/mazos/shipping-spine.md`. Playbooks: `src/lib/mazos/playbooks.ts`.
 
 A first-viewport operating table that ranks active products and the next shippable action for each.
 
@@ -57,7 +59,7 @@ Per-product strategy files that tell agents what good work looks like.
 Minimum playbooks:
 - JobFilter: lead quality, revenue conversion, competitor displacement.
 - Recall: personal AI memory, capture friction, future retrieval value.
-- OpenFlowKit: workflow templates, lightweight automation, reusable systems.
+- OpenFlowKit: privacy-first voice dictation + AI text refinement (LLM-agnostic, local-or-cloud STT).
 - MAZos: command centre, agent coordination, local/private operating layer.
 
 Each playbook should include:
@@ -115,7 +117,9 @@ This should push JobFilter and Recall revenue work above cosmetic MAZos polish u
 
 ## Recommended Next PR
 
-Build **Shipping Spine v1**.
+~~Build **Shipping Spine v1**.~~ Shipped 2026-07-04. Next candidates: Proof Receipts (durable evidence trail) or Safe Action Capsules — pick whichever the spine's evidence gaps make more urgent after a week of real use.
+
+Original v1 scope for reference:
 
 Scope:
 - Add a product manifest/playbook module for JobFilter, Recall, OpenFlowKit, and MAZos.

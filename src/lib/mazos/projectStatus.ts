@@ -38,7 +38,7 @@ const KNOWN_REPOS: Record<string, string[]> = {
   'mazos ui': [PATHS.mazos_ui],
   jobfilter: [PATHS.jobfilter, PATHS.jobfilter_alt, 'C:/Users/manaz/Desktop/JobFilterV1-github'],
   recall: [PATHS.recall],
-  openflowkit: [PATHS.openflowkit],
+  openflowkit: [PATHS.openflowkit, PATHS.openflowkit_alt],
   obsidian: [PATHS.obsidian],
   vault: [PATHS.obsidian],
   hermes: ['C:/Users/manaz/AppData/Local/hermes/hermes-agent'],

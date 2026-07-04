@@ -7,7 +7,7 @@ const repos = [
   { id: 'mazos_ui', label: 'MazOS UI', path: PATHS.mazos_ui, github: 'https://github.com/manazoid4/mazos-ui' },
   { id: 'recall', label: 'Recall', path: PATHS.recall, github: '' },
   { id: 'jobfilter', label: 'JobFilter', path: fs.existsSync(PATHS.jobfilter) ? PATHS.jobfilter : PATHS.jobfilter_alt, github: '' },
-  { id: 'openflowkit', label: 'OpenFlowKit', path: PATHS.openflowkit, github: '' },
+  { id: 'openflowkit', label: 'OpenFlowKit', path: fs.existsSync(PATHS.openflowkit) ? PATHS.openflowkit : PATHS.openflowkit_alt, github: '' },
   { id: 'obsidian', label: 'Obsidian Vault', path: PATHS.obsidian, github: '' },
 ];
 
