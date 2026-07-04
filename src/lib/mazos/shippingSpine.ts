@@ -195,8 +195,14 @@ export function buildShippingSpine(): ShippingSpine {
   };
 
   const markdown = spineMarkdown(rows, verdict);
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-  fs.writeFileSync(SNAPSHOT, markdown);
+  // Snapshot write only works on the local Windows box; hosted Vercel has a
+  // read-only filesystem and must still serve the spine (bridge-less fallback).
+  let savedTo = '';
+  try {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+    fs.writeFileSync(SNAPSHOT, markdown);
+    savedTo = SNAPSHOT;
+  } catch { /* read-only host: skip snapshot */ }
 
-  return { generatedAt: new Date().toISOString(), verdict, rows, savedTo: SNAPSHOT, markdown };
+  return { generatedAt: new Date().toISOString(), verdict, rows, savedTo, markdown };
 }
