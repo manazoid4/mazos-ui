@@ -13,5 +13,6 @@ Use the external-agent-sources skill to route tasks:
 - Maxun: browser automation and web extraction architecture.
 - Loop Engineering: recurring agent loops with stop conditions, budgets and human gates.
 - Awesome n8n Templates: n8n workflow templates, webhook/integration automations, no-code workflow patterns. Adapt examples manually; do not blindly activate imported workflows.
+- OpenWiki: local-first desktop knowledge capture, SQLite-backed wiki, Markdown export, and MCP access for agents.
 
 Require explicit user confirmation before global installers or agent wrapping. Refuse private scraping and platform authentication bypass.

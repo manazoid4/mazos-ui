@@ -14,4 +14,5 @@
 - Windows scheduled task: `MAZos Local Stack`. It runs at user logon and starts both the local app and bridge if ports `3046`/`3047` are not already listening.
 - To start manually from `C:/Users/manaz/Projects/mazos-ui`: run `npm run dev -- -p 3046` and `npm run bridge`.
 - Agent access check: `GET http://127.0.0.1:3047/health`, then `GET http://127.0.0.1:3047/api/mazos/repos`.
+- OpenWiki local knowledge app is installed at `C:/Users/manaz/AppData/Local/OpenWiki/OpenWiki.exe`; source clone is `C:/Users/manaz/Projects/openwiki`; database is `C:/Users/manaz/AppData/Roaming/com.openwiki.app/openwiki.db`; MCP server name is `openwiki`. Read `docs/OPENWIKI_LOCAL_INSTALL.md` before using it.
 - Relevant external ref: `https://github.com/witt3rd/oh-my-hermes` for Hermes state-file/plugin patterns.

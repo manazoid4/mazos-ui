@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-07-01",
+  "updatedAt": "2026-07-04",
   "localRoot": "C:/Users/manaz/.hermes/external-sources",
   "mazosSubmoduleRoot": "external/agent-sources",
   "sources": [
@@ -58,6 +58,14 @@
       "submodulePath": "external/agent-sources/awesome-n8n-templates",
       "revision": "2d78bc648ecd6eb6712583bd7baaaa5270c0b16a",
       "useWhen": "n8n workflow templates, automation workflow design, webhook/integration examples, and reusable no-code automation patterns. MAZos submodule checkout is sparse because the full repo contains Windows long-path template filenames; use the full Hermes clone for template files."
+    },
+    {
+      "id": "openwiki",
+      "repo": "https://github.com/kdsz001/OpenWiki.git",
+      "localPath": "C:/Users/manaz/.hermes/external-sources/openwiki",
+      "submodulePath": "external/agent-sources/openwiki",
+      "revision": "cc621ad08479429719d014f86af727c2f78b5824",
+      "useWhen": "Local-first desktop knowledge capture, SQLite-backed personal wiki, Markdown export, and MCP access for Claude/OpenClaw/Codex agents."
     }
   ],
   "standaloneFiles": [
