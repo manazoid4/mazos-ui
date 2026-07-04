@@ -62,6 +62,68 @@ To auto-start both local processes on Windows login, use the scheduled task:
 
 It runs `scripts/start-mazos-local-stack.ps1`, which starts the local app and bridge only when ports `3046` or `3047` are not already listening.
 
+## Agent Task Gate
+
+MAZos includes an Agent Task Gate at:
+
+`http://127.0.0.1:3046/sessions`
+
+The Task Gate is a preflight system for Hermes/Codex/OpenCode/Aider sessions. It checks the task before an agent starts so bad sessions are caught early.
+
+It scores each task from `0` to `100` using:
+
+- task clarity;
+- success criteria quality;
+- repo existence;
+- dirty repo state;
+- build/lint availability;
+- forbidden actions;
+- safety flags;
+- expected files/output;
+- MAZos project priority fit;
+- broadness;
+- whether research should happen first.
+
+Risk levels:
+
+- `safe`: prompt is scoped and ready to launch manually.
+- `caution`: prompt needs repair, narrower scope, or extra handoff context.
+- `danger`: blocked because the repo is missing or the task includes destructive/credential/private-scraping risk.
+
+The gate never starts a session automatically. `Start Session if Approved` copies the generated prompt so Maz can launch it deliberately. With `config/control-panel.yaml` currently setting `allow_shell: false`, MAZos treats the gate as prompt-only even when validation commands are suggested.
+
+Example flow:
+
+1. Open `/sessions`.
+2. Pick a repo.
+3. Write the rough task.
+4. Add success criteria and expected files if known.
+5. Click `Check Task`.
+6. Use `Improve Prompt`, `Make Smaller`, or `Generate Mission Plan`.
+7. Copy the final prompt into Hermes.
+
+API routes:
+
+- `GET /api/mazos/task-gate`
+- `POST /api/mazos/task-gate`
+- `POST /api/mazos/mission-plan`
+
+Data files:
+
+- `data/mazos/task-gates/latest-task-gate.json`
+- `data/mazos/task-gates/task-gate-history.jsonl`
+- `data/mazos/mission-plans/*.md`
+
+Safety defaults added when missing:
+
+- no destructive commands;
+- no force push;
+- no credential changes;
+- no global installs;
+- no recurring loops;
+- no private scraping/auth bypass;
+- no GitHub push unless Maz explicitly asks.
+
 ## Configuration
 System state and skill definitions are maintained in YAML format. The React UI polls these configurations to reflect the current state of Hermes skills.
 
