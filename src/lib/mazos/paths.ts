@@ -12,6 +12,17 @@ export const LOOP_RUNS = path.join(DATA_DIR, 'loop-runs.jsonl');
 export const LOOPS_STATE = path.join(DATA_DIR, 'loops.json');
 export const DECISIONS_LOG = path.join(DATA_DIR, 'decisions.jsonl');
 
+export const OPENWIKI_PATHS = {
+  app: 'C:/Users/manaz/AppData/Local/OpenWiki/OpenWiki.exe',
+  db: 'C:/Users/manaz/AppData/Roaming/com.openwiki.app/openwiki.db',
+  source: 'C:/Users/manaz/Projects/openwiki',
+  hermesSource: 'C:/Users/manaz/.hermes/external-sources/openwiki',
+  mazosSubmodule: 'C:/Users/manaz/Projects/mazos-ui/external/agent-sources/openwiki',
+  starterScript: 'C:/Users/manaz/.hermes/openwiki/start-openwiki.ps1',
+  docs: 'docs/OPENWIKI_LOCAL_INSTALL.md',
+  mcpServer: 'openwiki',
+} as const;
+
 export const PATHS = {
   mazos_ui: 'C:/Users/manaz/Projects/mazos-ui',
   recall: 'C:/Users/manaz/Projects/recall',
@@ -21,6 +32,9 @@ export const PATHS = {
   openflowkit_alt: 'C:/Users/manaz/Desktop/openflowkit',
   obsidian: 'C:/Users/manaz/Desktop/Obsidian Main Vault',
   jobfilter_vault: 'C:/Users/manaz/JobFilter-Obsidian-Vault',
+  openwiki_app: OPENWIKI_PATHS.app,
+  openwiki_db: OPENWIKI_PATHS.db,
+  openwiki_source: OPENWIKI_PATHS.source,
 } as const;
 
 export function today() { return new Date().toISOString().slice(0, 10); }

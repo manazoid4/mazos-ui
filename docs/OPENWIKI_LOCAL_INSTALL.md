@@ -33,6 +33,26 @@ Do not treat it as:
 - an autonomous ingestion bot;
 - a private-content scraper.
 
+## MAZos Cockpit Link
+
+MAZos now exposes OpenWiki as a first-class cockpit page:
+
+- Local UI: `http://127.0.0.1:3046/openwiki`
+- Hosted UI: `https://mazos-command-centre.vercel.app/openwiki`
+- API: `GET /api/mazos/openwiki`
+- Safe prompt API: `POST /api/mazos/openwiki`
+
+The cockpit page shows app install status, process state, scheduled task state, source clone status, SQLite counts, latest wiki pages, knowledge gaps, MCP config reminders, and copyable Hermes/Codex prompts.
+
+Hosted Vercel cannot read Windows-local OpenWiki paths directly. Start the local MAZos app and bridge when using the hosted page:
+
+```bash
+npm run dev -- -p 3046
+npm run bridge
+```
+
+Safety: MAZos does not launch OpenWiki while `config/control-panel.yaml` has `allow_shell: false`. It returns the PowerShell launch command for deliberate manual use.
+
 ## Agent Access
 
 MCP server name: `openwiki`
