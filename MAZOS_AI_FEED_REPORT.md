@@ -58,7 +58,10 @@ Response includes `verdict`, `filters`, `items`, `degraded`, and `warnings`.
 - `npm run build`: passed. Build emitted the existing non-fatal Turbopack warnings for OpenWiki local Windows/Python tracing and root lockfile inference.
 - Local `GET http://127.0.0.1:3046/api/mazos/feed`: passed.
 - Local root page smoke check returned 200. Existing dev server on `3046` held the Next project lock, so a second branch-specific dev server could not start on `3051`.
-- Hosted production deploy: pending until PR merge.
+- PR #17 merged.
+- Production deployment `dpl_obMah8Nezzf6WgyDrGwfLMV7uoB7`: Ready.
+- Hosted `GET https://mazos-command-centre.vercel.app/api/mazos/feed`: passed.
+- Hosted `https://mazos-command-centre.vercel.app/`: returned 200.
 
 ## Next Improvements
 
