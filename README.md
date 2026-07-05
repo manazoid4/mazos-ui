@@ -137,6 +137,16 @@ Safety defaults added when missing:
 - no private scraping/auth bypass;
 - no GitHub push unless Maz explicitly asks.
 
+## AI Feed
+
+MAZos includes a deterministic AI Feed in the main cockpit `FEED` tab and at:
+
+`GET /api/mazos/feed`
+
+The feed aggregates existing local-first evidence only: Shipping Spine, Decision Inbox events, run history, stale work findings, ship-log commits, intake queue arrivals, and OpenWiki status. It ranks items by shipping impact and answers: what changed since Maz last looked, and whether anything changes what should ship next.
+
+Safety defaults remain intact: no shell execution, no LLM calls, no external crawling, no cron, no database writes, and no autonomous agent starts. Hosted Vercel degrades through the same local bridge pattern as other MAZos APIs.
+
 ## Configuration
 System state and skill definitions are maintained in YAML format. The React UI polls these configurations to reflect the current state of Hermes skills.
 

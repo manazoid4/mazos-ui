@@ -19,11 +19,14 @@ type ToolRec = { id:string; name:string; kind:string; localPath:string; useWhen:
 type ShipLogData = { generatedAt:string; days:{day:string;commits:{repo:string;day:string;hash:string;subject:string}[]}[]; counters:{commitsToday:number;commits7d:number;reposActive:number;runsOk:number;runsFail:number}; markdown:string };
 type SpineRow = { product:string; productId:string; objective:string; nextAction:string; actionSource:string; commercialReason:string; evidence:string[]; evidencePaths:string[]; blocker:string; blocked:boolean; safety:SafetyLevel; owner:string; doneCriteria:string[]; moneyLabel:'high'|'medium'|'low'; score:number; repoPath:string|null; branch:string|null; github:string|null; dirty:number; commits7d:number; staleFindings:{severity:string;title:string}[]; openDecisions:{id:string;question:string}[]; handoffPrompt:string };
 type SpineData = { generatedAt:string; verdict:{product:string;action:string;why:string;owner:string;safety:SafetyLevel}; rows:SpineRow[]; savedTo:string; markdown:string };
-type Tab = 'NOW'|'LOOPS'|'PROJECTS'|'INTAKE'|'SYSTEM';
+type FeedItemType = 'decision'|'shipping-spine'|'run'|'stale-work'|'ship-log'|'intake'|'openwiki'|'system';
+type FeedItem = { id:string; createdAt:string; updatedAt?:string; type:FeedItemType; source:string; product?:string; title:string; summary:string; whyItMatters:string; nextAction:string; evidence:string[]; evidencePaths:string[]; safety:SafetyLevel; score:number; requiresAttention:boolean; status:'new'|'active'|'resolved'|'muted'; href?:string; copyPrompt?:string };
+type FeedData = { generatedAt:string; mode:string; verdict:{changedWhatShipsNext:boolean; headline:string; nextAction:string; topItemId:string|null}; filters:{products:string[]; types:FeedItemType[]; attentionCount:number}; items:FeedItem[]; degraded:boolean; warnings:string[] };
+type Tab = 'NOW'|'FEED'|'LOOPS'|'PROJECTS'|'INTAKE'|'SYSTEM';
 type BridgeState = { checked:boolean; available:boolean; url:string; detail:string };
 
 const cats = ['Execute','Repos','Recall','JobFilter','Obsidian','System'];
-const TABS: Tab[] = ['NOW','LOOPS','PROJECTS','INTAKE','SYSTEM'];
+const TABS: Tab[] = ['NOW','FEED','LOOPS','PROJECTS','INTAKE','SYSTEM'];
 const LOCAL_BRIDGE = 'http://127.0.0.1:3047';
 function SafetyBadge({level}:{level:SafetyLevel}){ const s=SAFETY_LEVELS[level]; return <span className={`safety s${level}`} title={s.meaning}>{level} {s.label}</span> }
 function shouldUseLocalBridge() {
@@ -63,6 +66,7 @@ export default function Page() {
   const [loops,setLoops]=useState<LoopState[]>([]); const [decisions,setDecisions]=useState<DecisionItem[]>([]);
   const [ship,setShip]=useState<ShipLogData|null>(null);
   const [spine,setSpine]=useState<SpineData|null>(null);
+  const [feed,setFeed]=useState<FeedData|null>(null), [feedAttention,setFeedAttention]=useState(false), [feedProduct,setFeedProduct]=useState(''), [feedType,setFeedType]=useState('');
   const [paletteOpen,setPaletteOpen]=useState(false);
   const [bridge,setBridge]=useState<BridgeState>({checked:false,available:false,url:LOCAL_BRIDGE,detail:'Checking local bridge...'});
   async function refresh(){ const [main,repos,health,runs]=await Promise.all([mazosFetch('/api/mazos').then(r=>r.json()),mazosFetch('/api/mazos/repos').then(r=>r.json()),mazosFetch('/api/mazos/health').then(r=>r.json()),mazosFetch('/api/mazos/runs?limit=8').then(r=>r.json())]); setData({...main, repos:repos.repos, services:health.services, runs:runs.runs, buttons:main.buttons||[]}); }
@@ -72,11 +76,13 @@ export default function Page() {
   async function loadDecisions(){ const r=await mazosFetch('/api/mazos/decisions').then(r=>r.json()); setDecisions(r.decisions||[]); }
   async function loadShip(){ const r=await mazosFetch('/api/mazos/shiplog').then(r=>r.json()); setShip(r); }
   async function loadSpine(){ try{ const r=await mazosFetch('/api/mazos/shipping-spine').then(r=>r.json()); if(!r.error) setSpine(r); }catch{ /* spine loads lazily; NOW view shows loading state */ } }
+  async function loadFeed(){ const qs=new URLSearchParams({limit:'18'}); if(feedProduct) qs.set('product',feedProduct); if(feedType) qs.set('type',feedType); if(feedAttention) qs.set('attentionOnly','true'); const r=await mazosFetch(`/api/mazos/feed?${qs.toString()}`).then(r=>r.json()); setFeed(r); }
   async function loopEvent(loopId:string, type:string, extra:Record<string,string>={}){ const r=await mazosFetch('/api/mazos/loops',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({loopId,type,...extra})}).then(r=>r.json()); if(r.loops) setLoops(r.loops); if(type==='gate') loadDecisions(); }
   async function resolveDecision(id:string, status:string, resolution:string){ const r=await mazosFetch('/api/mazos/decisions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'resolve',id,status,resolution})}).then(r=>r.json()); if(r.decisions){ setDecisions(r.decisions); const item=(r.decisions as DecisionItem[]).find(d=>d.id===id); if(item) setModal({title:'Resolution prompt · paste to the waiting agent',body:<CopyBlock text={buildResolutionPrompt(item)}/>}); } }
   async function addDecision(question:string, context:string){ const r=await mazosFetch('/api/mazos/decisions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'open',source:'manual',question,context})}).then(r=>r.json()); if(r.decisions) setDecisions(r.decisions); }
   async function routeTool(){ if(!routerTask.trim())return; setRouterBusy(true); const r=await mazosFetch(`/api/mazos/tool-router?task=${encodeURIComponent(routerTask)}`).then(r=>r.json()); setRouterRecs(r.recommendations||[]); setRouterBusy(false); }
-  useEffect(()=>{ document.documentElement.dataset.theme='dark'; const saved=localStorage.getItem('mazos-tab') as Tab|null; if(saved&&TABS.includes(saved)) setTab(saved); bridgeHealth().then(setBridge); refresh(); loadVault(); loadStatusDeck(); loadLoops(); loadDecisions(); loadShip(); loadSpine(); const t=setInterval(()=>setClock(new Date().toLocaleTimeString()),1000); return()=>clearInterval(t); },[]);
+  useEffect(()=>{ document.documentElement.dataset.theme='dark'; const saved=localStorage.getItem('mazos-tab') as Tab|null; if(saved&&TABS.includes(saved)) setTab(saved); bridgeHealth().then(setBridge); refresh(); loadVault(); loadStatusDeck(); loadLoops(); loadDecisions(); loadShip(); loadSpine(); loadFeed(); const t=setInterval(()=>setClock(new Date().toLocaleTimeString()),1000); return()=>clearInterval(t); },[]);
+  useEffect(()=>{ loadFeed(); },[feedAttention,feedProduct,feedType]);
   useEffect(()=>{ localStorage.setItem('mazos-tab',tab); },[tab]);
   useEffect(()=>{ const h=(e:KeyboardEvent)=>{ if((e.ctrlKey&&e.key.toLowerCase()==='k')||(e.key==='/'&&!(e.target as HTMLElement).closest('input,textarea,select'))){ e.preventDefault(); setPaletteOpen(o=>!o); } if(e.key==='Escape') setPaletteOpen(false); }; window.addEventListener('keydown',h); return()=>window.removeEventListener('keydown',h); },[]);
   const summary=useMemo(()=> data ? { existing:data.repos.filter(r=>r.exists).length, dirty:data.repos.filter(r=>r.dirty).length, optionalDown:data.services.filter(s=>!s.online&&s.signal==='not-running').length, critical:data.services.filter(s=>!s.online&&s.signal!=='not-running').length } : null,[data]);
@@ -100,6 +106,10 @@ export default function Page() {
         <Panel title="Stale Work Radar" badge={`${findings.length} finding(s) · read-only`}>{findings.length===0?<p className="muted">Nothing stale. All trees clean and pushed.</p>:<div className="findings">{findings.slice(0,3).map((f,i)=><StaleRow key={i} f={f} repos={data.repos} open={setModal}/>)}</div>}{findings.length>3&&<button className="ghost wide" onClick={()=>setTab('PROJECTS')}>All {findings.length} findings → PROJECTS</button>}</Panel>
       </section>
       <Panel title="Last Signal" badge={busy?'running':'summary'}>{last?<Result r={last}/>:<p className="muted">No runs yet.</p>}</Panel>
+    </>}
+
+    {tab==='FEED'&&<>
+      <FeedPanel feed={feed} attention={feedAttention} setAttention={setFeedAttention} product={feedProduct} setProduct={setFeedProduct} type={feedType} setType={setFeedType} reload={loadFeed} open={setModal}/>
     </>}
 
     {tab==='LOOPS'&&<>
@@ -283,6 +293,38 @@ function SpineRowCard({r,open}:{r:SpineRow;open:(m:{title:string;body:React.Reac
       <button className="ghost" onClick={()=>open({title:`${r.product} · done when`,body:<ul className="summaryList">{r.doneCriteria.map(d=><li key={d}>{d}</li>)}</ul>})}>Done when</button>
       <button className="ghost" onClick={()=>open({title:`${r.product} · evidence paths`,body:<ul className="summaryList">{r.evidencePaths.length?r.evidencePaths.map(p=><li key={p}>{p}</li>):<li>No evidence paths recorded.</li>}</ul>})}>Evidence</button>
       {r.github&&<button className="ghost" onClick={()=>open({title:`${r.product} GitHub`,body:r.github})}>GitHub</button>}
+    </div>
+  </article>;
+}
+function FeedPanel({feed,attention,setAttention,product,setProduct,type,setType,reload,open}:{feed:FeedData|null;attention:boolean;setAttention:(v:boolean)=>void;product:string;setProduct:(v:string)=>void;type:string;setType:(v:string)=>void;reload:()=>void;open:(m:{title:string;body:React.ReactNode})=>void}){
+  if(!feed) return <Panel title="AI Feed" badge="aggregating local evidence…"><p className="muted">Reading Shipping Spine, decisions, runs, ship log, stale radar, intake queue, and OpenWiki.</p></Panel>;
+  const top=feed.items.find(i=>i.id===feed.verdict.topItemId)||feed.items[0];
+  return <Panel title="AI Feed" badge={`${feed.filters.attentionCount} attention · ${feed.mode}${feed.degraded?' · degraded':''}`}>
+    <div className={`feedVerdict ${feed.verdict.changedWhatShipsNext?'changed':''}`}>
+      <div><p className="eyebrow">WHAT CHANGED</p><h3>{feed.verdict.headline}</h3><p className="muted">{feed.verdict.nextAction}</p>{feed.verdict.changedWhatShipsNext&&<p className="bad inline">This may change what ships next. Compare against Shipping Spine before launching an agent.</p>}</div>
+      <div className="chips feedVerdictBtns">{top?.copyPrompt&&<button className="primary hot" style={{width:'auto'}} onClick={()=>{navigator.clipboard.writeText(top.copyPrompt||''); open({title:`Feed prompt · ${top.title}`,body:<CopyBlock text={top.copyPrompt||''}/>});}}>COPY TOP PROMPT</button>}<button className="ghost" onClick={reload}>Refresh</button></div>
+    </div>
+    <div className="feedFilters">
+      <button className={`tabBtn ${attention?'active':''}`} onClick={()=>setAttention(!attention)}>ATTENTION</button>
+      <select className="input slim" value={product} onChange={e=>setProduct(e.target.value)}><option value="">All products</option>{feed.filters.products.map(p=><option key={p} value={p}>{p}</option>)}</select>
+      <select className="input slim" value={type} onChange={e=>setType(e.target.value)}><option value="">All types</option>{feed.filters.types.map(t=><option key={t} value={t}>{t}</option>)}</select>
+      {(product||type||attention)&&<button className="ghost" onClick={()=>{setProduct('');setType('');setAttention(false);}}>Clear</button>}
+    </div>
+    {feed.warnings.length>0&&<details><summary>degraded sources</summary><ul className="summaryList">{feed.warnings.map(w=><li key={w}>{w}</li>)}</ul></details>}
+    <div className="feedList">{feed.items.length===0?<p className="muted">No feed items matched this filter.</p>:feed.items.slice(0,12).map(item=><FeedItemCard key={item.id} item={item} open={open}/>)}</div>
+  </Panel>;
+}
+function FeedItemCard({item,open}:{item:FeedItem;open:(m:{title:string;body:React.ReactNode})=>void}){
+  return <article className={`feedItem ${item.requiresAttention?'needsAttention':''}`}>
+    <div className="repoTop"><h3>{item.title}</h3><span className="rowTags"><span className="tag">{item.type}</span>{item.product&&<span className="tag">{item.product}</span>}<SafetyBadge level={item.safety}/><span className={`tag ${item.requiresAttention?'blockedTag':''}`}>score {item.score}</span></span></div>
+    <p className="feedSummary">{item.summary}</p>
+    <p><b>Why:</b> {item.whyItMatters}</p>
+    <p><b>Next:</b> {item.nextAction}</p>
+    <small className="dim">{new Date(item.createdAt).toLocaleString()} · {item.source} · {item.status}</small>
+    <div className="chips">
+      <button className="ghost" onClick={()=>open({title:`Evidence · ${item.title}`,body:<div><h3>Evidence</h3><ul className="summaryList">{item.evidence.length?item.evidence.map(e=><li key={e}>{e}</li>):<li>No evidence attached.</li>}</ul><h3>Paths</h3><ul className="summaryList">{item.evidencePaths.length?item.evidencePaths.map(p=><li key={p}>{p}</li>):<li>No evidence paths.</li>}</ul></div>})}>Evidence</button>
+      {item.copyPrompt&&<button className="ghost" onClick={()=>{navigator.clipboard.writeText(item.copyPrompt||''); open({title:`Prompt · ${item.title}`,body:<CopyBlock text={item.copyPrompt||''}/>});}}>Copy prompt</button>}
+      {item.href&&<button className="ghost" onClick={()=>{ if(item.href!.startsWith('http')||item.href!.startsWith('/api/')) window.open(item.href,'_blank','noreferrer'); else if(item.href!.startsWith('/#')){ localStorage.setItem('mazos-tab',item.href!.slice(2)); location.href='/'; } else location.href=item.href!; }}>Open</button>}
     </div>
   </article>;
 }
