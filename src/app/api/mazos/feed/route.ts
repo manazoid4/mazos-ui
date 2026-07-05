@@ -7,5 +7,5 @@ export async function GET(req: Request) {
   const product = url.searchParams.get('product') || undefined;
   const type = (url.searchParams.get('type') || undefined) as FeedItemType | undefined;
   const attentionOnly = url.searchParams.get('attentionOnly') === 'true';
-  return NextResponse.json(buildFeed({ limit, product, type, attentionOnly }));
+  return NextResponse.json(await buildFeed({ limit, product, type, attentionOnly }));
 }

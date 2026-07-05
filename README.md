@@ -145,7 +145,13 @@ MAZos includes a deterministic AI Feed in the main cockpit `FEED` tab and at:
 
 The feed aggregates existing local-first evidence only: Shipping Spine, Decision Inbox events, run history, stale work findings, ship-log commits, intake queue arrivals, and OpenWiki status. It ranks items by shipping impact and answers: what changed since Maz last looked, and whether anything changes what should ship next.
 
+Ranking is revenue-weighted: items touching the high-money playbook product outrank equal signals elsewhere, failed runs and open decisions float to the top, and old passed runs/commits are trimmed as noise. Every item carries a scoped agent prompt (objective, evidence, verify commands, report-back format) plus a `→ Task Gate` action that pre-fills `/sessions` for preflight scoring.
+
 Safety defaults remain intact: no shell execution, no LLM calls, no external crawling, no cron, no database writes, and no autonomous agent starts. Hosted Vercel degrades through the same local bridge pattern as other MAZos APIs.
+
+## System Internals
+
+`GET /api/mazos/system` reports the local machine: CPU usage/cores, RAM used/total, GPU VRAM used/total + utilisation + temperature (read-only `nvidia-smi` query, absent on hosted), disk free, and uptime. The cockpit shows it as a compact strip under the header — local mode only; hosted without the bridge hides it. When RAM or VRAM crosses 92% the feed surfaces a memory-pressure attention item so agent runs do not fail for the wrong reason.
 
 ## Configuration
 System state and skill definitions are maintained in YAML format. The React UI polls these configurations to reflect the current state of Hermes skills.

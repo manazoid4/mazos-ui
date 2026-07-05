@@ -102,6 +102,14 @@ export default function SessionsPage() {
 
   useEffect(() => {
     document.documentElement.dataset.theme = 'dark';
+    try {
+      const draft = localStorage.getItem('mazos-taskgate-draft');
+      if (draft) {
+        localStorage.removeItem('mazos-taskgate-draft');
+        const parsed = JSON.parse(draft) as { task?: string; product?: string };
+        if (parsed.task) setForm((current) => ({ ...current, task: parsed.task!, repoLabel: parsed.product || current.repoLabel }));
+      }
+    } catch { /* stale draft is not worth breaking the gate page */ }
     mazosFetch('/api/mazos/task-gate')
       .then((res) => res.json())
       .then((data) => {
