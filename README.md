@@ -24,6 +24,19 @@ Installed source families include context compression, web reach, NVIDIA/GPU ski
 
 OpenWiki is also installed locally as a desktop knowledge capture/wiki source. See `docs/OPENWIKI_LOCAL_INSTALL.md` and `config/hermes_export/OPENWIKI_LOCAL_INSTALL.md`. Its app lives at `C:\Users\manaz\AppData\Local\OpenWiki\OpenWiki.exe`, its SQLite database lives at `C:\Users\manaz\AppData\Roaming\com.openwiki.app\openwiki.db`, and MCP-capable agents can use the `openwiki` SQLite MCP server after restarting their client.
 
+## OpenWiki in MAZos
+
+MAZos exposes OpenWiki as a first-class local knowledge hub at:
+
+`http://127.0.0.1:3046/openwiki`
+
+The page shows app install status, process state, scheduled task state, SQLite counts, latest wiki pages, knowledge gaps, MCP reminders, and copyable Hermes/Codex context prompts. The matching API is:
+
+- `GET /api/mazos/openwiki` for status, counts, health score, latest pages, and prompts.
+- `POST /api/mazos/openwiki` with `agent-context`, `launch-prompt`, or `mcp-reminder` for safe copyable outputs.
+
+Because `config/control-panel.yaml` currently has `allow_shell: false`, MAZos does not start OpenWiki from the UI. It returns the launch command for deliberate manual use instead. On the hosted Vercel site, `/openwiki` uses the same local bridge as the rest of MAZos, so Windows-local paths work only when the local app and bridge are running.
+
 ## Overview
 MazOS Control Deck is a persistent, formalized system providing a React-based UI that interfaces with underlying Hermes skills via YAML configuration files.
 

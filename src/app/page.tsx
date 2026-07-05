@@ -91,7 +91,7 @@ export default function Page() {
   return <main className="shell"><div className="gridGlow" />
     <header className="topbar"><div><p className="eyebrow">JARVIS-LITE LOCAL OPS</p><h1>MAZOS COCKPIT</h1><p className="mission">{data.mission}</p></div><div className="topStats"><b>{clock}</b><span>{summary.existing}/{data.repos.length} repos</span><span>{summary.dirty} dirty</span><span>{summary.optionalDown} optional off</span><span>{summary.critical} critical</span></div></header>
     <BridgeBanner bridge={bridge} refreshBridge={()=>bridgeHealth().then(setBridge)}/>
-    <nav className="tabs">{TABS.map(t=><button key={t} className={`tabBtn ${tab===t?'active':''}`} onClick={()=>setTab(t)}>{t}{t==='LOOPS'&&openDecisions.length>0&&<span className="tabBadge">{openDecisions.length}</span>}</button>)}<button className="tabBtn" onClick={()=>{location.href='/sessions'}}>TASK GATE</button><button className="tabBtn paletteHint" onClick={()=>setPaletteOpen(true)}>⌘ Ctrl+K</button></nav>
+    <nav className="tabs">{TABS.map(t=><button key={t} className={`tabBtn ${tab===t?'active':''}`} onClick={()=>setTab(t)}>{t}{t==='LOOPS'&&openDecisions.length>0&&<span className="tabBadge">{openDecisions.length}</span>}</button>)}<button className="tabBtn" onClick={()=>{location.href='/sessions'}}>TASK GATE</button><button className="tabBtn" onClick={()=>{location.href='/openwiki'}}>OPENWIKI</button><button className="tabBtn paletteHint" onClick={()=>setPaletteOpen(true)}>⌘ Ctrl+K</button></nav>
 
     {tab==='NOW'&&<>
       <SpinePanel spine={spine} run={runAction} open={setModal} reload={loadSpine}/>

@@ -1,0 +1,25 @@
+You are improving MAZos after the OpenWiki cockpit integration.
+
+Repo: C:\Users\manaz\Projects\mazos-ui
+OpenWiki app: C:\Users\manaz\AppData\Local\OpenWiki\OpenWiki.exe
+OpenWiki DB: C:\Users\manaz\AppData\Roaming\com.openwiki.app\openwiki.db
+MAZos route: /openwiki
+MAZos API: /api/mazos/openwiki
+MCP server: openwiki
+
+Context:
+- MAZos now has a first-class OpenWiki page, dashboard link, API status layer, health score, latest wiki pages, knowledge gaps, copyable Hermes/Codex prompts, launch command, MCP snippet, Ops Radar entry, and Tool Router awareness.
+- Safety is prompt-first. Do not execute shell or mutate the OpenWiki DB while config/control-panel.yaml has allow_shell: false.
+- Hosted Vercel can only see Windows-local paths through the MAZos local bridge.
+
+Mission:
+Make MAZos/OpenWiki genuinely useful for personal AI memory and agent operations, not just a status page. Think from first principles and be creative.
+
+Improve from these angles:
+1. Product moat: make local personal memory, project context, and agent handoff feel uniquely better than generic agent dashboards.
+2. Agent reliability: before any task, surface what OpenWiki knows, what Obsidian knows, what GitHub changed, and what is missing.
+3. Capture workflow: design a fast path for saving important web/text/session context into OpenWiki and exporting durable summaries to Obsidian.
+4. Knowledge quality: add gap scoring, stale context detection, and project-specific seed packs for MAZos, Recall, JobFilter, OpenFlowKit, and Hermes.
+5. Safety: preserve read-only defaults, no destructive commands, no private scraping, no DB writes without explicit user intent.
+
+Build something small but real. Validate with npm run lint and npm run build. Update docs and a report. Use an agents/* branch and PR; never push directly to main.
