@@ -22,6 +22,7 @@ type SpineData = { generatedAt:string; verdict:{product:string;action:string;why
 type FeedItemType = 'decision'|'shipping-spine'|'run'|'stale-work'|'ship-log'|'intake'|'openwiki'|'system';
 type FeedItem = { id:string; createdAt:string; updatedAt?:string; type:FeedItemType; source:string; product?:string; title:string; summary:string; whyItMatters:string; nextAction:string; evidence:string[]; evidencePaths:string[]; safety:SafetyLevel; score:number; requiresAttention:boolean; status:'new'|'active'|'resolved'|'muted'; href?:string; copyPrompt?:string };
 type FeedData = { generatedAt:string; mode:string; verdict:{changedWhatShipsNext:boolean; headline:string; nextAction:string; topItemId:string|null}; filters:{products:string[]; types:FeedItemType[]; attentionCount:number}; items:FeedItem[]; degraded:boolean; warnings:string[] };
+type SystemInternals = { generatedAt:string; local:boolean; host:string; uptimeHours:number; cpu:{model:string;cores:number;usagePct:number|null}; ram:{totalMb:number;usedMb:number;usedPct:number}; disk:{drive:string;totalGb:number;freeGb:number}|null; gpu:{name:string;vramTotalMb:number;vramUsedMb:number;utilizationPct:number;temperatureC:number}|null; pressure:{ram:boolean;vram:boolean} };
 type Tab = 'NOW'|'FEED'|'LOOPS'|'PROJECTS'|'INTAKE'|'SYSTEM';
 type BridgeState = { checked:boolean; available:boolean; url:string; detail:string };
 
@@ -69,6 +70,8 @@ export default function Page() {
   const [feed,setFeed]=useState<FeedData|null>(null), [feedAttention,setFeedAttention]=useState(false), [feedProduct,setFeedProduct]=useState(''), [feedType,setFeedType]=useState('');
   const [paletteOpen,setPaletteOpen]=useState(false);
   const [bridge,setBridge]=useState<BridgeState>({checked:false,available:false,url:LOCAL_BRIDGE,detail:'Checking local bridge...'});
+  const [sys,setSys]=useState<SystemInternals|null>(null);
+  async function loadSys(){ try{ const r=await mazosFetch('/api/mazos/system').then(r=>r.json()); setSys(r&&r.local?r:null); }catch{ setSys(null); } }
   async function refresh(){ const [main,repos,health,runs]=await Promise.all([mazosFetch('/api/mazos').then(r=>r.json()),mazosFetch('/api/mazos/repos').then(r=>r.json()),mazosFetch('/api/mazos/health').then(r=>r.json()),mazosFetch('/api/mazos/runs?limit=8').then(r=>r.json())]); setData({...main, repos:repos.repos, services:health.services, runs:runs.runs, buttons:main.buttons||[]}); }
   async function loadVault(){ const v=await mazosFetch('/api/mazos/vault').then(r=>r.json()); setVault(v); return v; }
   async function loadStatusDeck(){ const names=['JobFilter','Recall','MAZos','Vault']; const statuses=await Promise.all(names.map(name=>mazosFetch(`/api/mazos/project-status?project=${encodeURIComponent(name)}`).then(r=>r.json()))); setStatusDeck(statuses.filter(x=>!x.error)); }
@@ -81,7 +84,7 @@ export default function Page() {
   async function resolveDecision(id:string, status:string, resolution:string){ const r=await mazosFetch('/api/mazos/decisions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'resolve',id,status,resolution})}).then(r=>r.json()); if(r.decisions){ setDecisions(r.decisions); const item=(r.decisions as DecisionItem[]).find(d=>d.id===id); if(item) setModal({title:'Resolution prompt · paste to the waiting agent',body:<CopyBlock text={buildResolutionPrompt(item)}/>}); } }
   async function addDecision(question:string, context:string){ const r=await mazosFetch('/api/mazos/decisions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'open',source:'manual',question,context})}).then(r=>r.json()); if(r.decisions) setDecisions(r.decisions); }
   async function routeTool(){ if(!routerTask.trim())return; setRouterBusy(true); const r=await mazosFetch(`/api/mazos/tool-router?task=${encodeURIComponent(routerTask)}`).then(r=>r.json()); setRouterRecs(r.recommendations||[]); setRouterBusy(false); }
-  useEffect(()=>{ document.documentElement.dataset.theme='dark'; const saved=localStorage.getItem('mazos-tab') as Tab|null; if(saved&&TABS.includes(saved)) setTab(saved); bridgeHealth().then(setBridge); refresh(); loadVault(); loadStatusDeck(); loadLoops(); loadDecisions(); loadShip(); loadSpine(); loadFeed(); const t=setInterval(()=>setClock(new Date().toLocaleTimeString()),1000); return()=>clearInterval(t); },[]);
+  useEffect(()=>{ document.documentElement.dataset.theme='dark'; const saved=localStorage.getItem('mazos-tab') as Tab|null; if(saved&&TABS.includes(saved)) setTab(saved); bridgeHealth().then(setBridge); refresh(); loadVault(); loadStatusDeck(); loadLoops(); loadDecisions(); loadShip(); loadSpine(); loadFeed(); loadSys(); const t=setInterval(()=>setClock(new Date().toLocaleTimeString()),1000); const ts=setInterval(loadSys,30_000); return()=>{clearInterval(t);clearInterval(ts);}; },[]);
   useEffect(()=>{ loadFeed(); },[feedAttention,feedProduct,feedType]);
   useEffect(()=>{ localStorage.setItem('mazos-tab',tab); },[tab]);
   useEffect(()=>{ const h=(e:KeyboardEvent)=>{ if((e.ctrlKey&&e.key.toLowerCase()==='k')||(e.key==='/'&&!(e.target as HTMLElement).closest('input,textarea,select'))){ e.preventDefault(); setPaletteOpen(o=>!o); } if(e.key==='Escape') setPaletteOpen(false); }; window.addEventListener('keydown',h); return()=>window.removeEventListener('keydown',h); },[]);
@@ -96,6 +99,7 @@ export default function Page() {
   const byCat=Object.fromEntries(cats.map(c=>[c,data.buttons.filter(b=>b.category===c)])); const last=run||data.runs?.[0];
   return <main className="shell"><div className="gridGlow" />
     <header className="topbar"><div><p className="eyebrow">JARVIS-LITE LOCAL OPS</p><h1>MAZOS COCKPIT</h1><p className="mission">{data.mission}</p></div><div className="topStats"><b>{clock}</b><span>{summary.existing}/{data.repos.length} repos</span><span>{summary.dirty} dirty</span><span>{summary.optionalDown} optional off</span><span>{summary.critical} critical</span></div></header>
+    <SystemStrip sys={sys}/>
     <BridgeBanner bridge={bridge} refreshBridge={()=>bridgeHealth().then(setBridge)}/>
     <nav className="tabs">{TABS.map(t=><button key={t} className={`tabBtn ${tab===t?'active':''}`} onClick={()=>setTab(t)}>{t}{t==='LOOPS'&&openDecisions.length>0&&<span className="tabBadge">{openDecisions.length}</span>}</button>)}<button className="tabBtn" onClick={()=>{location.href='/sessions'}}>TASK GATE</button><button className="tabBtn" onClick={()=>{location.href='/openwiki'}}>OPENWIKI</button><button className="tabBtn paletteHint" onClick={()=>setPaletteOpen(true)}>⌘ Ctrl+K</button></nav>
 
@@ -109,7 +113,7 @@ export default function Page() {
     </>}
 
     {tab==='FEED'&&<>
-      <FeedPanel feed={feed} attention={feedAttention} setAttention={setFeedAttention} product={feedProduct} setProduct={setFeedProduct} type={feedType} setType={setFeedType} reload={loadFeed} open={setModal}/>
+      <FeedPanel feed={feed} attention={feedAttention} setAttention={setFeedAttention} product={feedProduct} setProduct={setFeedProduct} type={feedType} setType={setFeedType} reload={loadFeed} open={setModal} goNow={()=>setTab('NOW')}/>
     </>}
 
     {tab==='LOOPS'&&<>
@@ -154,6 +158,17 @@ export default function Page() {
 }
 
 function CopyBlock({text}:{text:string}){ return <div><button className="ghost wide" onClick={()=>navigator.clipboard.writeText(text)}>Copy to clipboard</button><pre>{text}</pre></div>; }
+function SystemStrip({sys}:{sys:SystemInternals|null}){
+  if(!sys) return null;
+  const gb=(mb:number)=>(mb/1024).toFixed(1);
+  return <div className="sysStrip" title={`${sys.cpu.model} · snapshot ${new Date(sys.generatedAt).toLocaleTimeString()}`}>
+    <span className="sysHost">{sys.host} · up {sys.uptimeHours}h</span>
+    <span className={sys.cpu.usagePct!==null&&sys.cpu.usagePct>=90?'sysHot':''}>CPU {sys.cpu.usagePct??'—'}% · {sys.cpu.cores}c</span>
+    <span className={sys.pressure.ram?'sysHot':''}>RAM {gb(sys.ram.usedMb)}/{gb(sys.ram.totalMb)} GB · {sys.ram.usedPct}%</span>
+    {sys.gpu&&<span className={sys.pressure.vram?'sysHot':''}>VRAM {gb(sys.gpu.vramUsedMb)}/{gb(sys.gpu.vramTotalMb)} GB · GPU {sys.gpu.utilizationPct}% · {sys.gpu.temperatureC}°C</span>}
+    {sys.disk&&<span>{sys.disk.drive.replace('\\','')} {sys.disk.freeGb} GB free</span>}
+  </div>;
+}
 function BridgeBanner({bridge,refreshBridge}:{bridge:BridgeState;refreshBridge:()=>void}){
   const hosted = shouldUseLocalBridge();
   if (!hosted) return <div className="bridgeBanner local"><b>Local mode</b><span>MAZos is running on this PC and can read Windows repo/vault paths directly.</span></div>;
@@ -296,13 +311,13 @@ function SpineRowCard({r,open}:{r:SpineRow;open:(m:{title:string;body:React.Reac
     </div>
   </article>;
 }
-function FeedPanel({feed,attention,setAttention,product,setProduct,type,setType,reload,open}:{feed:FeedData|null;attention:boolean;setAttention:(v:boolean)=>void;product:string;setProduct:(v:string)=>void;type:string;setType:(v:string)=>void;reload:()=>void;open:(m:{title:string;body:React.ReactNode})=>void}){
+function FeedPanel({feed,attention,setAttention,product,setProduct,type,setType,reload,open,goNow}:{feed:FeedData|null;attention:boolean;setAttention:(v:boolean)=>void;product:string;setProduct:(v:string)=>void;type:string;setType:(v:string)=>void;reload:()=>void;open:(m:{title:string;body:React.ReactNode})=>void;goNow:()=>void}){
   if(!feed) return <Panel title="AI Feed" badge="aggregating local evidence…"><p className="muted">Reading Shipping Spine, decisions, runs, ship log, stale radar, intake queue, and OpenWiki.</p></Panel>;
   const top=feed.items.find(i=>i.id===feed.verdict.topItemId)||feed.items[0];
   return <Panel title="AI Feed" badge={`${feed.filters.attentionCount} attention · ${feed.mode}${feed.degraded?' · degraded':''}`}>
     <div className={`feedVerdict ${feed.verdict.changedWhatShipsNext?'changed':''}`}>
       <div><p className="eyebrow">WHAT CHANGED</p><h3>{feed.verdict.headline}</h3><p className="muted">{feed.verdict.nextAction}</p>{feed.verdict.changedWhatShipsNext&&<p className="bad inline">This may change what ships next. Compare against Shipping Spine before launching an agent.</p>}</div>
-      <div className="chips feedVerdictBtns">{top?.copyPrompt&&<button className="primary hot" style={{width:'auto'}} onClick={()=>{navigator.clipboard.writeText(top.copyPrompt||''); open({title:`Feed prompt · ${top.title}`,body:<CopyBlock text={top.copyPrompt||''}/>});}}>COPY TOP PROMPT</button>}<button className="ghost" onClick={reload}>Refresh</button></div>
+      <div className="chips feedVerdictBtns">{top?.copyPrompt&&<button className="primary hot" style={{width:'auto'}} onClick={()=>{navigator.clipboard.writeText(top.copyPrompt||''); open({title:`Feed prompt · ${top.title}`,body:<CopyBlock text={top.copyPrompt||''}/>});}}>COPY TOP PROMPT</button>}<button className="ghost" onClick={goNow}>Spine (NOW)</button><button className="ghost" onClick={reload}>Refresh</button></div>
     </div>
     <div className="feedFilters">
       <button className={`tabBtn ${attention?'active':''}`} onClick={()=>setAttention(!attention)}>ATTENTION</button>
@@ -324,6 +339,7 @@ function FeedItemCard({item,open}:{item:FeedItem;open:(m:{title:string;body:Reac
     <div className="chips">
       <button className="ghost" onClick={()=>open({title:`Evidence · ${item.title}`,body:<div><h3>Evidence</h3><ul className="summaryList">{item.evidence.length?item.evidence.map(e=><li key={e}>{e}</li>):<li>No evidence attached.</li>}</ul><h3>Paths</h3><ul className="summaryList">{item.evidencePaths.length?item.evidencePaths.map(p=><li key={p}>{p}</li>):<li>No evidence paths.</li>}</ul></div>})}>Evidence</button>
       {item.copyPrompt&&<button className="ghost" onClick={()=>{navigator.clipboard.writeText(item.copyPrompt||''); open({title:`Prompt · ${item.title}`,body:<CopyBlock text={item.copyPrompt||''}/>});}}>Copy prompt</button>}
+      <button className="ghost" title="Score this as an agent task in the Task Gate" onClick={()=>{localStorage.setItem('mazos-taskgate-draft',JSON.stringify({task:`${item.nextAction}\n\nContext: [${item.type}${item.product?` · ${item.product}`:''}] ${item.title} — ${item.summary}`,product:item.product||''})); location.href='/sessions';}}>→ Task Gate</button>
       {item.href&&<button className="ghost" onClick={()=>{ if(item.href!.startsWith('http')||item.href!.startsWith('/api/')) window.open(item.href,'_blank','noreferrer'); else if(item.href!.startsWith('/#')){ localStorage.setItem('mazos-tab',item.href!.slice(2)); location.href='/'; } else location.href=item.href!; }}>Open</button>}
     </div>
   </article>;

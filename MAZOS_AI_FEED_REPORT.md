@@ -63,8 +63,56 @@ Response includes `verdict`, `filters`, `items`, `degraded`, and `warnings`.
 - Hosted `GET https://mazos-command-centre.vercel.app/api/mazos/feed`: passed.
 - Hosted `https://mazos-command-centre.vercel.app/`: returned 200.
 
+## v1.1 — Ops-Layer Upgrade (2026-07-05, branch `agents/feed-ops-layer`)
+
+Goal: turn the feed from an activity list into an operating layer. Every change serves "what changed, and does it change what ships next" — no decorative additions.
+
+### Ranking (revenue + velocity)
+
+- Revenue weighting: playbook `moneyLabel` from the Shipping Spine now feeds item scores (`high` +8, `medium` +4). Signals on the money product outrank equal signals elsewhere.
+- Spine is computed once per feed build and shared, instead of per-source recomputes.
+- Ship-log commits on the current spine priority get +5 and a "direct progress" why; off-priority commits get −5 and an explicit "no action needed".
+
+### Item quality (noise cuts)
+
+- Runs: all failures kept, but only the 2 most recent passes (proof), older passes dropped.
+- Ship log: capped 6 commits (was 10), 4 per day (was 6).
+- Decisions: all open + 3 most recent resolved (was flat 10).
+- Intake: capped 5 (was 8).
+- `whyItMatters`/`nextAction` rewritten to be product-specific and directive (e.g. stale items now carry repo path + branch as evidence).
+
+### Agent handoff
+
+- Copy prompts restructured: OBJECTIVE / CONTEXT / EVIDENCE / READ FIRST / VERIFY WITH / REPORT BACK format, scoped to one item.
+- Spine feed item now reuses the real Shipping Spine handoff prompt (repo, branch, verify, done criteria) instead of the generic template.
+- New `→ Task Gate` button on every feed item: drafts the item into `/sessions` (localStorage handshake) for preflight scoring before launch.
+
+### System internals
+
+- New `GET /api/mazos/system` + `src/lib/mazos/systemInfo.ts`: CPU usage/cores, RAM, GPU VRAM/util/temp via read-only `nvidia-smi` query, disk free, uptime. Hosted returns `local:false`; the UI hides the strip.
+- New cockpit strip under the header (local mode only) with hot-red highlighting at ≥90% CPU / ≥92% RAM / ≥92% VRAM.
+- Feed emits a `system` attention item on RAM/VRAM pressure ≥92% so degraded local capacity is visible before agent runs fail.
+
+### UI
+
+- Feed list is a responsive 2-column grid with tighter cards — verdict + ~10 items fit one viewport on a desktop display.
+- Verdict row gained a `Spine (NOW)` jump for direct comparison against the Shipping Spine.
+
+### Safety (unchanged posture)
+
+- Still no LLM calls, no external crawling, no cron, no writes, no agent launches from the feed.
+- The only new process interaction is the read-only `nvidia-smi` GPU query in `systemInfo.ts` (mutates nothing, degrades to null when absent), consistent with existing read-only `git` probes in `repoScanner.ts`.
+
+### Validation
+
+- `npm run lint`: passed.
+- `npm run build`: passed; `/api/mazos/system` present in route manifest.
+- Local `GET /api/mazos/system`: 200, `local=true`, real VRAM readings.
+- Local `GET /api/mazos/feed`: 200, ranked items, verdict intact.
+
 ## Next Improvements
 
 1. Add read/mute state in `data/mazos/feed-state.json` only after v1 proves useful.
 2. Add Proof Receipts as first-class feed items.
 3. Add a prompt-only "summarize this feed" action before any automatic LLM integration.
+4. Thumbs up/down per item feeding a static per-type weight file — cheap personal ranking without any model.
