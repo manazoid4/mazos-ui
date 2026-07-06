@@ -80,7 +80,7 @@ export default function Page() {
   const [routerTask,setRouterTask]=useState(''), [routerRecs,setRouterRecs]=useState<ToolRec[]>([]), [routerBusy,setRouterBusy]=useState(false);
   const [tab,setTab]=useState<Tab>('NOW');
   const [loops,setLoops]=useState<AuditedLoopState[]>([]); const [decisions,setDecisions]=useState<DecisionItem[]>([]);
-  const [loopFactory,setLoopFactory]=useState({ goal:'Research JobFilter competitors weekly and turn what works into product moves.', project:'JobFilter', pattern:'auto' as LoopPatternId, sources:'' });
+  const [loopFactory,setLoopFactory]=useState({ goal:'Research JobFilter competitors weekly and turn what works into product moves.', project:'JobFilter', pattern:'research-intelligence' as LoopPatternId, sources:'' });
   const [loopDraft,setLoopDraft]=useState<LoopFactoryDraft|null>(null);
   const [ship,setShip]=useState<ShipLogData|null>(null);
   const [spine,setSpine]=useState<SpineData|null>(null);
@@ -200,7 +200,7 @@ function ServerMorningBriefPanel({brief,open}:{brief:ServerBrief|null;open:(m:{t
         <button className="ghost" onClick={()=>open({title:'Safest next prompt',body:<CopyBlock text={brief.safestNextPrompt}/>})}>Safest Prompt</button>
       </div>
     </div>
-    <ul className="summaryList briefNeeds">{brief.needsYou.slice(0,4).map(item=><li key={item}>{item}</li>)}</ul>
+    <ul className="summaryList briefNeeds">{brief.needsYou.slice(0,4).map((item,idx)=><li key={`${idx}-${item}`}>{item}</li>)}</ul>
   </Panel>;
 }
 function ContextMapPanel({contextMap,open,reload}:{contextMap:ContextMap|null;open:(m:{title:string;body:React.ReactNode})=>void;reload:()=>void}){
@@ -296,32 +296,47 @@ function LoopDoctorPanel({loops}:{loops:AuditedLoopState[]}){
   </Panel>;
 }
 
+const LOOP_PATTERN_OPTIONS:[LoopPatternId,string][]=[
+  ['research-intelligence','Research intelligence'],
+  ['daily-triage','Daily triage'],
+  ['pr-babysitter','PR babysitter'],
+  ['build-doctor','Build doctor'],
+  ['intake-drainer','Intake drainer'],
+  ['ship-log','Ship log'],
+  ['github-pulse','GitHub pulse'],
+  ['useless-feature-reaper','Useless feature reaper'],
+  ['revenue-radar','Revenue radar'],
+  ['founder-inbox','Founder inbox'],
+  ['auto','Auto-pick (last resort)'],
+];
+const LOOP_PATTERN_HINTS:Record<LoopPatternId,string>={
+  'auto':'MAZos guesses the pattern from your goal text. Prefer picking one — vague loops become permanent noise.',
+  'research-intelligence':'Turn public market/competitor inputs into ranked product moves with source receipts.',
+  'daily-triage':'Read state and produce the few priorities that matter now. L1 report-only.',
+  'pr-babysitter':'Watch PRs and branches until merged or explicitly blocked.',
+  'build-doctor':'Repeat build/lint repair with small scoped fixes.',
+  'intake-drainer':'Process queued sources one at a time with gates.',
+  'ship-log':'Summarize recent shipped work into durable notes.',
+  'github-pulse':'Read latest pushes, PRs, checks, and releases before recommending work.',
+  'useless-feature-reaper':'Find panels, loops, or features with weak evidence or low product value.',
+  'revenue-radar':'Track pricing, funnel, onboarding, and lead-quality gaps.',
+  'founder-inbox':'Turn scattered asks into ranked loops, decisions, and receipts.',
+};
+
 function LoopFactoryPanel({form,setForm,draft,busy,draftLoop,saveLoop,open}:{form:{goal:string;project:string;pattern:LoopPatternId;sources:string};setForm:(v:{goal:string;project:string;pattern:LoopPatternId;sources:string})=>void;draft:LoopFactoryDraft|null;busy:string;draftLoop:()=>void;saveLoop:()=>void;open:(m:{title:string;body:React.ReactNode})=>void}){
   const update=<K extends keyof typeof form>(key:K,value:(typeof form)[K])=>setForm({...form,[key]:value});
   const canSave=!!draft&&draft.readiness!=='unsafe';
   return <Panel title="Loop Factory" badge="plain goal → reusable loop template · scored before save">
     <div className="split">
       <div>
+        <label className="fieldLabel">Pattern (pick first — prevents vague loops)</label>
+        <select className="input" value={form.pattern} onChange={e=>update('pattern',e.target.value as LoopPatternId)}>
+          {LOOP_PATTERN_OPTIONS.map(([id,label])=><option key={id} value={id}>{label}</option>)}
+        </select>
+        <small className="muted">{LOOP_PATTERN_HINTS[form.pattern]}</small>
         <label className="fieldLabel">Goal</label>
         <textarea className="input" rows={4} value={form.goal} onChange={e=>update('goal',e.target.value)} placeholder="Research competitors weekly and turn what works into product moves."/>
-        <div className="cols">
-          <input className="input" value={form.project} onChange={e=>update('project',e.target.value)} placeholder="Project, e.g. JobFilter"/>
-          <select className="input" value={form.pattern} onChange={e=>update('pattern',e.target.value as LoopPatternId)}>
-            {[
-              ['auto','Auto-pick pattern'],
-              ['research-intelligence','Research intelligence'],
-              ['daily-triage','Daily triage'],
-              ['pr-babysitter','PR babysitter'],
-              ['build-doctor','Build doctor'],
-              ['intake-drainer','Intake drainer'],
-              ['ship-log','Ship log'],
-              ['github-pulse','GitHub pulse'],
-              ['useless-feature-reaper','Useless feature reaper'],
-              ['revenue-radar','Revenue radar'],
-              ['founder-inbox','Founder inbox'],
-            ].map(([id,label])=><option key={id} value={id}>{label}</option>)}
-          </select>
-        </div>
+        <input className="input" value={form.project} onChange={e=>update('project',e.target.value)} placeholder="Project, e.g. JobFilter"/>
         <label className="fieldLabel">Sources</label>
         <textarea className="input" rows={3} value={form.sources} onChange={e=>update('sources',e.target.value)} placeholder="One public URL, source path, or intake note per line."/>
         <div className="chips">
