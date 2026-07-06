@@ -244,7 +244,7 @@ function decisionItems(warnings: string[]): FeedItem[] {
         safety: 'L1',
         requiresAttention: isOpen,
         status: isOpen ? 'active' : 'resolved',
-        href: '/#LOOPS',
+        href: '/#WORK',
       }, { urgency: isOpen ? 0 : -15, blocker: isOpen ? 8 : 0 });
     });
   } catch (error) {
@@ -333,7 +333,7 @@ function staleItems(warnings: string[], money: MoneyWeight): FeedItem[] {
         safety: critical ? 'L3' : 'L2',
         requiresAttention: f.severity !== 'info',
         status: 'active',
-        href: '/#PROJECTS',
+        href: '/#WORK',
       }, { revenue: money(f.repoLabel), blocker: critical ? 10 : 0 }, ['git status --short', 'git log --oneline -3']);
     });
   } catch (error) {
