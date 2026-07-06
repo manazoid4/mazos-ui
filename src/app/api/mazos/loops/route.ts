@@ -3,7 +3,7 @@ import path from 'path';
 import { NextResponse } from 'next/server';
 import { LOOP_RUNS, LOOPS_STATE, DECISIONS_LOG } from '@/lib/mazos/paths';
 import { foldLoopState, type LoopEvent, type LoopEventType, type LoopStopReason } from '@/lib/mazos/loopEngine';
-import { allLoopTemplates } from '@/lib/mazos/loopFactory';
+import { allLoopTemplates, auditLoopUsefulness } from '@/lib/mazos/loopFactory';
 
 function readEvents(): LoopEvent[] {
   if (!fs.existsSync(LOOP_RUNS)) return [];
@@ -11,7 +11,10 @@ function readEvents(): LoopEvent[] {
 }
 
 export async function GET() {
-  return NextResponse.json({ loops: foldLoopState(allLoopTemplates(), readEvents()) });
+  const templates = allLoopTemplates();
+  return NextResponse.json({
+    loops: foldLoopState(templates, readEvents()).map((loop) => ({ ...loop, audit: auditLoopUsefulness(loop.def) })),
+  });
 }
 
 const EVENT_TYPES: LoopEventType[] = ['start', 'iteration', 'complete', 'stop', 'gate'];
@@ -44,7 +47,7 @@ export async function POST(req: Request) {
     fs.appendFileSync(DECISIONS_LOG, `${JSON.stringify(decision)}\n`, 'utf8');
   }
 
-  const loops = foldLoopState(templates, readEvents());
+  const loops = foldLoopState(templates, readEvents()).map((loop) => ({ ...loop, audit: auditLoopUsefulness(loop.def) }));
   fs.writeFileSync(LOOPS_STATE, JSON.stringify({ updatedAt: at, loops: loops.map(l => ({ id: l.def.id, status: l.status, iteration: l.iteration, startedAt: l.startedAt, stopReason: l.stopReason })) }, null, 2));
   return NextResponse.json({ ok: true, loops });
 }
