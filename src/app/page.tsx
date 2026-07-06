@@ -32,11 +32,13 @@ type ContextMap = { generatedAt:string; project:string; repoPath:string|null; bl
 type ServerBrief = { generatedAt:string; headline:string; shipNext:string; needsYou:string[]; avoidToday:string; safestNextPrompt:string; evidence:string[]; markdown:string; degraded:boolean; warnings:string[] };
 type AgentRuntime = { id:string; name:string; kind:string; status:string; pathHint:string; safetyCeiling:SafetyLevel; allowedModes:string[]; preferredTasks:string[]; forbidden:string[]; validationCommands:string[]; bridgeAware:boolean; lastTraceHint:string };
 type AgentRuntimeRegistry = { generatedAt:string; safety:{safeMode:boolean; allowShell:boolean; allowPush:boolean; allowDestructive:boolean}; recommendedRuntimeId:string; recommendationReason:string; runtimes:AgentRuntime[] };
-type Tab = 'NOW'|'FEED'|'LOOPS'|'PROJECTS'|'INTAKE'|'SYSTEM';
+type Tab = 'NOW'|'INBOX'|'WORK'|'INTAKE'|'SYSTEM';
 type BridgeState = { checked:boolean; available:boolean; url:string; detail:string };
 
 const cats = ['Execute','Repos','Recall','JobFilter','Obsidian','System'];
-const TABS: Tab[] = ['NOW','FEED','LOOPS','PROJECTS','INTAKE','SYSTEM'];
+const TABS: Tab[] = ['NOW','INBOX','WORK','INTAKE','SYSTEM'];
+const LEGACY_TABS: Record<string,Tab> = { FEED:'INBOX', LOOPS:'WORK', PROJECTS:'WORK' };
+function normalizeTab(saved:string|null):Tab{ if(!saved) return 'NOW'; if(TABS.includes(saved as Tab)) return saved as Tab; return LEGACY_TABS[saved] ?? 'NOW'; }
 const LOCAL_BRIDGE = 'http://127.0.0.1:3047';
 function SafetyBadge({level}:{level:SafetyLevel}){ const s=SAFETY_LEVELS[level]; return <span className={`safety s${level}`} title={s.meaning}>{level} {s.label}</span> }
 function shouldUseLocalBridge() {
@@ -67,9 +69,8 @@ async function mazosFetch(path:string, init?:RequestInit) {
 }
 
 export default function Page() {
-  const [data,setData]=useState<Data|null>(null), [vault,setVault]=useState<Vault|null>(null), [run,setRun]=useState<Run|null>(null), [busy,setBusy]=useState(''), [modal,setModal]=useState<{title:string;body:React.ReactNode}|null>(null);
+  const [data,setData]=useState<Data|null>(null), [vault,setVault]=useState<Vault|null>(null), [busy,setBusy]=useState(''), [modal,setModal]=useState<{title:string;body:React.ReactNode}|null>(null);
   const [ingest,setIngest]=useState({ urls:'', sourceType:'auto', target:'Recall', tags:'', notes:'' }); const [files,setFiles]=useState<FileList|null>(null); const [clock,setClock]=useState('');
-  const [projectQuery,setProjectQuery]=useState('JobFilter'), [projectStatus,setProjectStatus]=useState<ProjectStatus|null>(null);
   const [statusDeck,setStatusDeck]=useState<ProjectStatus[]>([]);
   const [routerTask,setRouterTask]=useState(''), [routerRecs,setRouterRecs]=useState<ToolRec[]>([]), [routerBusy,setRouterBusy]=useState(false);
   const [tab,setTab]=useState<Tab>('NOW');
@@ -98,59 +99,47 @@ export default function Page() {
   async function resolveDecision(id:string, status:string, resolution:string){ const r=await mazosFetch('/api/mazos/decisions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'resolve',id,status,resolution})}).then(r=>r.json()); if(r.decisions){ setDecisions(r.decisions); const item=(r.decisions as DecisionItem[]).find(d=>d.id===id); if(item) setModal({title:'Resolution prompt · paste to the waiting agent',body:<CopyBlock text={buildResolutionPrompt(item)}/>}); } }
   async function addDecision(question:string, context:string){ const r=await mazosFetch('/api/mazos/decisions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'open',source:'manual',question,context})}).then(r=>r.json()); if(r.decisions) setDecisions(r.decisions); }
   async function routeTool(){ if(!routerTask.trim())return; setRouterBusy(true); const [r]=await Promise.all([mazosFetch(`/api/mazos/tool-router?task=${encodeURIComponent(routerTask)}`).then(r=>r.json()), loadRuntimes(routerTask)]); setRouterRecs(r.recommendations||[]); setRouterBusy(false); }
-  useEffect(()=>{ document.documentElement.dataset.theme='dark'; const saved=localStorage.getItem('mazos-tab') as Tab|null; if(saved&&TABS.includes(saved)) setTab(saved); bridgeHealth().then(setBridge); refresh(); loadVault(); loadStatusDeck(); loadLoops(); loadDecisions(); loadShip(); loadSpine(); loadFeed(); loadBrief(); loadContextMap(); loadRuntimes(); loadSys(); const t=setInterval(()=>setClock(new Date().toLocaleTimeString()),1000); const ts=setInterval(loadSys,30_000); return()=>{clearInterval(t);clearInterval(ts);}; },[]);
+  useEffect(()=>{ document.documentElement.dataset.theme='dark'; setTab(normalizeTab(localStorage.getItem('mazos-tab'))); bridgeHealth().then(setBridge); refresh(); loadVault(); loadStatusDeck(); loadLoops(); loadDecisions(); loadShip(); loadSpine(); loadFeed(); loadBrief(); loadContextMap(); loadRuntimes(); loadSys(); const t=setInterval(()=>setClock(new Date().toLocaleTimeString()),1000); const ts=setInterval(loadSys,30_000); return()=>{clearInterval(t);clearInterval(ts);}; },[]);
   useEffect(()=>{ localStorage.setItem('mazos-tab',tab); },[tab]);
   useEffect(()=>{ const h=(e:KeyboardEvent)=>{ if((e.ctrlKey&&e.key.toLowerCase()==='k')||(e.key==='/'&&!(e.target as HTMLElement).closest('input,textarea,select'))){ e.preventDefault(); setPaletteOpen(o=>!o); } if(e.key==='Escape') setPaletteOpen(false); }; window.addEventListener('keydown',h); return()=>window.removeEventListener('keydown',h); },[]);
   const summary=useMemo(()=> data ? { existing:data.repos.filter(r=>r.exists).length, dirty:data.repos.filter(r=>r.dirty).length, optionalDown:data.services.filter(s=>!s.online&&s.signal==='not-running').length, critical:data.services.filter(s=>!s.online&&s.signal!=='not-running').length } : null,[data]);
   const findings=useMemo(()=> data?computeStaleFindings(data.repos):[],[data]);
   const openDecisions=decisions.filter(d=>d.status==='open');
-  async function runAction(id:string){ setBusy(id); const r=await mazosFetch('/api/mazos/action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})}).then(r=>r.json()); setRun(r); setBusy(''); setModal({title:r.label, body:<Result r={r}/>}); refresh(); }
-  async function loadProjectStatus(){ setBusy('project-status'); const r=await mazosFetch(`/api/mazos/project-status?project=${encodeURIComponent(projectQuery)}`).then(r=>r.json()); setBusy(''); if(r.error){ setModal({title:'Project Status',body:r.error}); return; } setProjectStatus(r); }
+  async function runAction(id:string){ setBusy(id); const r=await mazosFetch('/api/mazos/action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})}).then(r=>r.json()); setBusy(''); setModal({title:r.label, body:<Result r={r}/>}); refresh(); }
   async function loadContextPack(project:string){ setBusy('context-pack'); const r=await mazosFetch(`/api/mazos/context-pack?project=${encodeURIComponent(project)}`).then(r=>r.json()); setBusy(''); if(r.error){ setModal({title:'Context Pack',body:r.error}); return; } setModal({title:`Context Pack · ${r.project} · ${r.lines} lines`,body:<div><CopyBlock text={r.markdown}/><p className="muted">Saved: {r.savedTo}</p></div>}); }
-  async function doIngest(){ setBusy('ingest'); const fd=new FormData(); Object.entries(ingest).forEach(([k,v])=>fd.append(k,v)); Array.from(files||[]).forEach(f=>fd.append('files',f)); const r=await mazosFetch('/api/mazos/ingest',{method:'POST',body:fd}).then(r=>r.json()); const now=new Date().toISOString(); const rr={success:!!r.success,actionId:'ingest_urls',label:'Ingest Intake',cwd:'api',commandPreview:'POST /api/mazos/ingest',stdout:JSON.stringify(r,null,2),stderr:r.error||'',exitCode:r.success?0:1,startedAt:now,finishedAt:now,durationMs:0,nextSuggestedAction:r.queued?'Open Intake Queue and process queued sources.':'Review routed sources in Recall.'}; setRun(rr); setBusy(''); setModal({title:'Intake Result',body:<Result r={rr}/>}); refresh(); }
+  async function doIngest(){ setBusy('ingest'); const fd=new FormData(); Object.entries(ingest).forEach(([k,v])=>fd.append(k,v)); Array.from(files||[]).forEach(f=>fd.append('files',f)); const r=await mazosFetch('/api/mazos/ingest',{method:'POST',body:fd}).then(r=>r.json()); const now=new Date().toISOString(); const rr={success:!!r.success,actionId:'ingest_urls',label:'Ingest Intake',cwd:'api',commandPreview:'POST /api/mazos/ingest',stdout:JSON.stringify(r,null,2),stderr:r.error||'',exitCode:r.success?0:1,startedAt:now,finishedAt:now,durationMs:0,nextSuggestedAction:r.queued?'Open Intake Queue and process queued sources.':'Review routed sources in Recall.'}; setBusy(''); setModal({title:'Intake Result',body:<Result r={rr}/>}); refresh(); }
   if(!data||!summary) return <main className="shell"><div className="boot">MAZ_OS :: BOOTING COCKPIT…</div></main>;
-  const byCat=Object.fromEntries(cats.map(c=>[c,data.buttons.filter(b=>b.category===c)])); const last=run||data.runs?.[0];
+  const byCat=Object.fromEntries(cats.map(c=>[c,data.buttons.filter(b=>b.category===c)]));
   return <main className="shell"><div className="gridGlow" />
-    <header className="topbar"><div><p className="eyebrow">JARVIS-LITE LOCAL OPS</p><h1>MAZOS COCKPIT</h1><p className="mission">{data.mission}</p></div><div className="topStats"><b>{clock}</b><span>{summary.existing}/{data.repos.length} repos</span><span>{summary.dirty} dirty</span><span>{summary.optionalDown} optional off</span><span>{summary.critical} critical</span></div></header>
+    <header className="topbar"><div><h1>MAZOS COCKPIT</h1><p className="mission">{data.mission}</p></div><div className="topRight"><div className="topLinks"><a href="/sessions">TASK GATE</a><a href="/openwiki">OPENWIKI</a></div><div className="topStats"><b>{clock}</b><span>{summary.existing}/{data.repos.length} repos</span><span>{summary.dirty} dirty</span><span>{summary.optionalDown} optional off</span><span>{summary.critical} critical</span></div></div></header>
     <SystemStrip sys={sys}/>
     <BridgeBanner bridge={bridge} refreshBridge={()=>bridgeHealth().then(setBridge)}/>
-    <nav className="tabs">{TABS.map(t=><button key={t} className={`tabBtn ${tab===t?'active':''}`} onClick={()=>setTab(t)}>{t}{t==='LOOPS'&&openDecisions.length>0&&<span className="tabBadge">{openDecisions.length}</span>}</button>)}<button className="tabBtn" onClick={()=>{location.href='/sessions'}}>TASK GATE</button><button className="tabBtn" onClick={()=>{location.href='/openwiki'}}>OPENWIKI</button><button className="tabBtn paletteHint" onClick={()=>setPaletteOpen(true)}>⌘ Ctrl+K</button></nav>
+    <nav className="tabs">{TABS.map(t=><button key={t} className={`tabBtn ${tab===t?'active':''}`} onClick={()=>setTab(t)}>{t}{t==='WORK'&&openDecisions.length>0&&<span className="tabBadge">{openDecisions.length}</span>}{t==='INBOX'&&(feed?.filters.unreadCount??0)>0&&<span className="tabBadge">{feed!.filters.unreadCount}</span>}</button>)}<button className="tabBtn paletteHint" onClick={()=>setPaletteOpen(true)}>⌘ Ctrl+K</button></nav>
 
     {tab==='NOW'&&<>
       <SpinePanel spine={spine} run={runAction} open={setModal} reload={loadSpine}/>
-      <section className="split">
-        <ServerMorningBriefPanel brief={brief} open={setModal}/>
-        <ContextMapPanel contextMap={contextMap} open={setModal} reload={()=>loadContextMap('MAZos')}/>
-      </section>
-      <section className="split">
-        <Panel title="Loop Status" badge="control tower · click for deck"><div className="loopStrip">{loops.map(l=><button key={l.def.id} className={`loopChip ${l.status}`} onClick={()=>setTab('LOOPS')}><b>{l.def.name}</b><small>{l.status}{l.status!=='idle'?` · ${l.iteration}/${l.def.maxIterations} it · ${l.budgetUsedMinutes}/${l.def.budgetMinutes}m`:''}{l.stopReason?` · ${l.stopReason}`:''}</small></button>)}{loops.length===0&&<p className="muted">Loading loops…</p>}</div></Panel>
-        <Panel title="Stale Work Radar" badge={`${findings.length} finding(s) · read-only`}>{findings.length===0?<p className="muted">Nothing stale. All trees clean and pushed.</p>:<div className="findings">{findings.slice(0,3).map((f,i)=><StaleRow key={i} f={f} repos={data.repos} open={setModal}/>)}</div>}{findings.length>3&&<button className="ghost wide" onClick={()=>setTab('PROJECTS')}>All {findings.length} findings → PROJECTS</button>}</Panel>
-      </section>
-      <Panel title="Last Signal" badge={busy?'running':'summary'}>{last?<Result r={last}/>:<p className="muted">No runs yet.</p>}</Panel>
+      <ServerMorningBriefPanel brief={brief} open={setModal}/>
     </>}
 
-    {tab==='FEED'&&<>
+    {tab==='INBOX'&&<>
       <FeedPanel feed={feed} reload={loadFeed} open={setModal} goNow={()=>setTab('NOW')} setState={setFeedState}/>
     </>}
 
-    {tab==='LOOPS'&&<>
-      <Panel title="Loop Engineering Deck" badge="prompts out · evidence in · MAZos never executes"><div className="loopDeck">{loops.map(l=><LoopCard key={l.def.id} loop={l} event={loopEvent} open={setModal}/>)}</div></Panel>
-      <DecisionInbox decisions={decisions} resolve={resolveDecision} add={addDecision} open={setModal}/>
-    </>}
-
-    {tab==='PROJECTS'&&<>
+    {tab==='WORK'&&<>
       <Panel title="Project Command Cards" badge="commit · PR · dirty · blocker · next · evidence">
         <div className="repos">{statusDeck.map(s=><ProjectCard key={s.query} status={s} open={setModal} pack={loadContextPack} busy={busy}/>)}</div>
       </Panel>
+      <Panel title="Loop Engineering Deck" badge="prompts out · evidence in · MAZos never executes"><div className="loopDeck">{loops.map(l=><LoopCard key={l.def.id} loop={l} event={loopEvent} open={setModal}/>)}</div></Panel>
+      <DecisionInbox decisions={decisions} resolve={resolveDecision} add={addDecision} open={setModal}/>
+      <ContextMapPanel contextMap={contextMap} open={setModal} reload={()=>loadContextMap('MAZos')}/>
       <section className="split">
         <Panel title="Ship Log" badge={ship?`${ship.counters.commits7d} commits 7d · ${ship.counters.reposActive} repos · runs ${ship.counters.runsOk}✓/${ship.counters.runsFail}✗`:'loading'}>
           {ship?<><div className="shipCounters"><span><b>{ship.counters.commitsToday}</b> today</span><span><b>{ship.counters.commits7d}</b> 7 days</span><span><b>{ship.counters.reposActive}</b> repos active</span><span><b>{ship.counters.runsOk}</b> runs ok</span><span><b>{ship.counters.runsFail}</b> runs fail</span></div>
           <div className="chips"><button className="primary" style={{width:'auto'}} onClick={()=>{navigator.clipboard.writeText(ship.markdown); setModal({title:'Publishable update copied',body:<CopyBlock text={ship.markdown}/>});}}>COPY PUBLISHABLE UPDATE</button><button className="ghost" onClick={loadShip}>Refresh</button></div>
           <details><summary>preview</summary><pre>{ship.markdown}</pre></details></>:<p className="muted">Loading ship log…</p>}
         </Panel>
-        <Panel title="Stale Work Radar — full" badge={`${findings.length} finding(s)`}>{findings.length===0?<p className="muted">Nothing stale.</p>:<div className="findings">{findings.map((f,i)=><StaleRow key={i} f={f} repos={data.repos} open={setModal}/>)}</div>}</Panel>
+        <Panel title="Stale Work Radar" badge={`${findings.length} finding(s) · read-only`}>{findings.length===0?<p className="muted">Nothing stale. All trees clean and pushed.</p>:<div className="findings">{findings.map((f,i)=><StaleRow key={i} f={f} repos={data.repos} open={setModal}/>)}</div>}</Panel>
       </section>
-      <Panel title="Latest Project Work" badge="read-only · last 24h"><div className="statusQuery"><input className="input" placeholder="Project name e.g. JobFilter, MAZos, Recall, Hermes" value={projectQuery} onChange={e=>setProjectQuery(e.target.value)} onKeyDown={e=>{ if(e.key==='Enter') loadProjectStatus(); }}/><button className="primary" disabled={!projectQuery.trim()||busy==='project-status'} onClick={loadProjectStatus}>{busy==='project-status'?'CHECKING…':'LATEST 24H'}</button></div>{projectStatus&&<ProjectStatusView status={projectStatus}/>}</Panel>
       <section className="split">
         <Panel title="Repo Command Centre" badge="summaries over logs"><div className="repos">{data.repos.map(r=><RepoCard key={r.id} repo={r} run={runAction} open={(m)=>setModal(m)}/>)}</div></Panel>
         <HandoffPanel statuses={statusDeck} open={setModal}/>
@@ -238,7 +227,7 @@ function RuntimeDetail({runtime}:{runtime:AgentRuntime}){
 }
 function BridgeBanner({bridge,refreshBridge}:{bridge:BridgeState;refreshBridge:()=>void}){
   const hosted = shouldUseLocalBridge();
-  if (!hosted) return <div className="bridgeBanner local"><b>Local mode</b><span>MAZos is running on this PC and can read Windows repo/vault paths directly.</span></div>;
+  if (!hosted) return null;
   return <div className={`bridgeBanner ${bridge.available?'on':'off'}`}>
     <div><b>{bridge.available?'Local bridge connected':'Hosted mode needs local bridge'}</b><span>{bridge.available?bridge.detail:'Start local MAZos and the bridge to let this Vercel site read C:\\Users\\manaz paths.'}</span></div>
     <code>npm run dev -- -p 3046</code>
@@ -254,9 +243,11 @@ function CommandPalette({actions,loops,projects,close,exec}:{actions:Action[];lo
   const items:Item[]=useMemo(()=>{
     const all:Item[]=[
       ...TABS.map(t=>({key:`tab-${t}`,kind:'tab' as const,label:`Go to ${t}`,hint:'tab',go:()=>{exec.setTab(t);close();}})),
+      {key:'page-taskgate',kind:'tab' as const,label:'Go to TASK GATE',hint:'page',go:()=>{close();location.href='/sessions';}},
+      {key:'page-openwiki',kind:'tab' as const,label:'Go to OPENWIKI',hint:'page',go:()=>{close();location.href='/openwiki';}},
       ...actions.map(a=>({key:`act-${a.id}`,kind:'action' as const,label:a.label,hint:`${a.category} · ${a.enabled?a.description:a.disabledReason||'disabled'}`,safety:a.safetyLevel,go:()=>{close();exec.runAction(a.id);}})),
       ...loops.map(l=>({key:`loop-${l.def.id}`,kind:'loop' as const,label:`Loop: ${l.def.name}`,hint:`${l.status} · copy runner prompt`,safety:l.def.safetyCeiling,go:()=>{close();exec.openLoopPrompt(l);}})),
-      ...projects.map(p=>({key:`proj-${p.query}`,kind:'project' as const,label:`Project: ${p.matchedProject||p.query}`,hint:p.nextBestAction.slice(0,80),go:()=>{exec.setTab('PROJECTS');close();}})),
+      ...projects.map(p=>({key:`proj-${p.query}`,kind:'project' as const,label:`Project: ${p.matchedProject||p.query}`,hint:p.nextBestAction.slice(0,80),go:()=>{exec.setTab('WORK');close();}})),
     ];
     const needle=q.trim().toLowerCase();
     if(!needle) return all.slice(0,12);
@@ -535,8 +526,6 @@ function ProjectCard({status,open,pack,busy}:{status:ProjectStatus;open:(m:{titl
   </article>;
 }
 function EvidenceList({status}:{status:ProjectStatus}){ return <div><h3>Evidence paths read</h3><ul className="summaryList">{status.evidencePathsRead.map(x=><li key={x}>{x}</li>)}</ul>{status.missing.length>0&&<><h3>Missing</h3><ul className="summaryList">{status.missing.map(x=><li className="bad inline" key={x}>{x}</li>)}</ul></>}<h3>Verify commands</h3><ul className="summaryList">{status.verifyCommands.map(x=><li key={x}>{x}</li>)}</ul></div>; }
-function dirtyLine(label:string, lines:string[]){ return lines.length ? <li key={label}><b>{label}:</b> {lines.slice(0,5).join(' · ')}{lines.length>5?' · …':''}</li> : null; }
-function ProjectStatusView({status}:{status:ProjectStatus}){return <div className="projectStatus"><div className="statusMeta"><b>{status.matchedProject||status.query}</b><span>{status.resolvedRepoPath||'Obsidian only'}</span></div>{status.warnings.length>0&&<ul className="summaryList">{status.warnings.map(x=><li className="bad inline" key={x}>{x}</li>)}</ul>}<div className="statusGrid"><section><h3>Latest commits</h3><ul className="summaryList">{(status.latestCommits.length?status.latestCommits:['No commits found in last 24h after checking git.']).slice(0,6).map(x=><li key={x}>{x}</li>)}</ul></section><section><h3>Files / state changed</h3><ul className="summaryList">{status.gitStatus.length?[dirtyLine('App',status.dirtyGroups.app),dirtyLine('Submodule/source',status.dirtyGroups.submodule),dirtyLine('Generated',status.dirtyGroups.generated),dirtyLine('Docs',status.dirtyGroups.docs),dirtyLine('Unknown',status.dirtyGroups.unknown)].filter(Boolean):<li>Git tree clean or repo unavailable.</li>}</ul></section><section><h3>Current blocker</h3><p className="muted">{status.blocker}</p><h3>Next best action</h3><p className="muted">{status.nextBestAction}</p></section><section><h3>Evidence paths read</h3><ul className="summaryList">{status.evidencePathsRead.slice(0,8).map(x=><li key={x}>{x}</li>)}</ul>{status.missing.length>0&&<p className="bad inline">{status.missing.join(' · ')}</p>}</section></div>{status.currentEntries.length>0&&<details><summary>Obsidian CURRENT entries</summary><ul className="summaryList">{status.currentEntries.map(x=><li key={x}>{x}</li>)}</ul></details>}{status.loopState.length>0&&<details><summary>Loop state</summary><ul className="summaryList">{status.loopState.map(x=><li key={x}>{x}</li>)}</ul></details>}</div>}
 function RepoCard({repo,run,open}:{repo:Repo;run:(id:string)=>void;open:(m:{title:string;body:React.ReactNode})=>void}){ const fix=`Fix ${repo.label}. Path: ${repo.path}. Inspect first. Run safe status/build/lint only. No destructive commands. Return summary not raw logs.`; return <article className={`repo ${repo.exists?'':'missing'}`}><div className="repoTop"><h3>{repo.label}</h3><span className={repo.dirty?'bad':'ok'}>{repo.exists?(repo.dirty?'dirty':'clean'):'missing'}</span></div><small>{repo.path}</small><dl><dt>branch</dt><dd>{repo.branch}</dd><dt>unpushed</dt><dd>{repo.unpushedCount}</dd><dt>pkg</dt><dd>{repo.packageManager}</dd><dt>scripts</dt><dd>{Object.keys(repo.scripts||{}).slice(0,5).join(', ')||'none'}</dd></dl><div className="chips"><button className="ghost" onClick={()=>run('repo_health_scan')}>Scan</button>{repo.buildScript&&<button className="ghost" onClick={()=>repo.id==='recall'?run('build_recall'):repo.id==='jobfilter'?run('jobfilter_build'):navigator.clipboard.writeText(`cd ${repo.path} && npm run build`)}>Build</button>}{repo.lintScript&&<button className="ghost" onClick={()=>navigator.clipboard.writeText(`cd ${repo.path} && npm run lint`)}>Lint</button>}{repo.github&&<button className="ghost" onClick={()=>open({title:`${repo.label} GitHub`,body:repo.github})}>GitHub</button>}<button className="ghost" onClick={()=>open({title:`${repo.label} Fix Prompt`,body:fix})}>Fix Prompt</button></div></article> }
 function ActionLine({a,run,busy}:{a?:Action;run:(id:string)=>void;busy:string}){ if(!a)return null; const mode=a.handler==='command'?'runs command':a.handler==='repo'?'reads repos':a.handler==='vault'?'writes scan files':'manual prompt'; return <button title={a.disabledReason||a.expectedOutput} disabled={!a.enabled||!!busy} onClick={()=>run(a.id)} className="ghost action"><span className="actionHead"><b>{busy===a.id?'… ':''}{a.label}</b>{a.safetyLevel&&<SafetyBadge level={a.safetyLevel}/>}</span><small>{mode} · {a.enabled?a.description:a.disabledReason}</small></button> }
 function Result({r}:{r:Run}){ const lines=(r.stdout||r.stderr||'').split('\n').filter(Boolean).slice(0,10); return <div><div className="consoleHead"><b>{r.label}</b><span className={r.success?'ok':'bad'}>{r.success?'OK':'FAIL'}</span></div><p className="muted">{r.commandPreview} · {r.durationMs}ms</p><ul className="summaryList">{lines.map((l,i)=><li key={i}>{l.slice(0,220)}</li>)}</ul><details><summary>raw output</summary><pre>{r.stdout||r.stderr}</pre></details><p className="muted">Next: {r.nextSuggestedAction}</p></div>}
