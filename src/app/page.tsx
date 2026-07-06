@@ -27,6 +27,11 @@ type FeedItem = { id:string; createdAt:string; updatedAt?:string; type:FeedItemT
 type FeedData = { generatedAt:string; mode:string; verdict:{changedWhatShipsNext:boolean; headline:string; nextAction:string; topItemId:string|null}; filters:{products:string[]; types:FeedItemType[]; attentionCount:number; unreadCount:number}; items:FeedItem[]; degraded:boolean; warnings:string[] };
 type FlightRecord = { itemId:string; product?:string; events:{at:string;kind:string;label:string;ok?:boolean;detail?:string}[]; sources:string[]; notVerified:string[] };
 type SystemInternals = { generatedAt:string; local:boolean; host:string; uptimeHours:number; cpu:{model:string;cores:number;usagePct:number|null}; ram:{totalMb:number;usedMb:number;usedPct:number}; disk:{drive:string;totalGb:number;freeGb:number}|null; gpu:{name:string;vramTotalMb:number;vramUsedMb:number;utilizationPct:number;temperatureC:number}|null; pressure:{ram:boolean;vram:boolean} };
+type SourceReceipt = { title:string; kind:string; pathOrUrl:string; freshness:string; confidence:'high'|'medium'|'low'; readFirst:boolean; sensitive:boolean; product?:string };
+type ContextMap = { generatedAt:string; project:string; repoPath:string|null; blocker:string; nextBestAction:string; receipts:SourceReceipt[]; missingKnowledge:string[]; copyPrompt:string };
+type ServerBrief = { generatedAt:string; headline:string; shipNext:string; needsYou:string[]; avoidToday:string; safestNextPrompt:string; evidence:string[]; markdown:string; degraded:boolean; warnings:string[] };
+type AgentRuntime = { id:string; name:string; kind:string; status:string; pathHint:string; safetyCeiling:SafetyLevel; allowedModes:string[]; preferredTasks:string[]; forbidden:string[]; validationCommands:string[]; bridgeAware:boolean; lastTraceHint:string };
+type AgentRuntimeRegistry = { generatedAt:string; safety:{safeMode:boolean; allowShell:boolean; allowPush:boolean; allowDestructive:boolean}; recommendedRuntimeId:string; recommendationReason:string; runtimes:AgentRuntime[] };
 type Tab = 'NOW'|'FEED'|'LOOPS'|'PROJECTS'|'INTAKE'|'SYSTEM';
 type BridgeState = { checked:boolean; available:boolean; url:string; detail:string };
 
@@ -72,6 +77,7 @@ export default function Page() {
   const [ship,setShip]=useState<ShipLogData|null>(null);
   const [spine,setSpine]=useState<SpineData|null>(null);
   const [feed,setFeed]=useState<FeedData|null>(null);
+  const [brief,setBrief]=useState<ServerBrief|null>(null), [contextMap,setContextMap]=useState<ContextMap|null>(null), [runtimeRegistry,setRuntimeRegistry]=useState<AgentRuntimeRegistry|null>(null);
   const [paletteOpen,setPaletteOpen]=useState(false);
   const [bridge,setBridge]=useState<BridgeState>({checked:false,available:false,url:LOCAL_BRIDGE,detail:'Checking local bridge...'});
   const [sys,setSys]=useState<SystemInternals|null>(null);
@@ -84,12 +90,15 @@ export default function Page() {
   async function loadShip(){ const r=await mazosFetch('/api/mazos/shiplog').then(r=>r.json()); setShip(r); }
   async function loadSpine(){ try{ const r=await mazosFetch('/api/mazos/shipping-spine').then(r=>r.json()); if(!r.error) setSpine(r); }catch{ /* spine loads lazily; NOW view shows loading state */ } }
   async function loadFeed(){ const r=await mazosFetch('/api/mazos/feed?limit=30').then(r=>r.json()); setFeed(r); }
+  async function loadBrief(){ try{ const r=await mazosFetch('/api/mazos/morning-brief?project=MAZos').then(r=>r.json()); if(!r.error) setBrief(r); }catch{ setBrief(null); } }
+  async function loadContextMap(project='MAZos'){ try{ const r=await mazosFetch(`/api/mazos/context-map?project=${encodeURIComponent(project)}`).then(r=>r.json()); if(!r.error) setContextMap(r); }catch{ setContextMap(null); } }
+  async function loadRuntimes(task=''){ try{ const qs=task?`?task=${encodeURIComponent(task)}`:''; const r=await mazosFetch(`/api/mazos/agent-runtimes${qs}`).then(r=>r.json()); if(!r.error) setRuntimeRegistry(r); }catch{ setRuntimeRegistry(null); } }
   async function setFeedState(id:string,state:FeedUserState){ setFeed(f=>f?{...f,items:f.items.map(i=>i.id===id?{...i,userState:state}:i)}:f); await mazosFetch('/api/mazos/feed',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,state})}).catch(()=>undefined); }
   async function loopEvent(loopId:string, type:string, extra:Record<string,string>={}){ const r=await mazosFetch('/api/mazos/loops',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({loopId,type,...extra})}).then(r=>r.json()); if(r.loops) setLoops(r.loops); if(type==='gate') loadDecisions(); }
   async function resolveDecision(id:string, status:string, resolution:string){ const r=await mazosFetch('/api/mazos/decisions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'resolve',id,status,resolution})}).then(r=>r.json()); if(r.decisions){ setDecisions(r.decisions); const item=(r.decisions as DecisionItem[]).find(d=>d.id===id); if(item) setModal({title:'Resolution prompt · paste to the waiting agent',body:<CopyBlock text={buildResolutionPrompt(item)}/>}); } }
   async function addDecision(question:string, context:string){ const r=await mazosFetch('/api/mazos/decisions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'open',source:'manual',question,context})}).then(r=>r.json()); if(r.decisions) setDecisions(r.decisions); }
-  async function routeTool(){ if(!routerTask.trim())return; setRouterBusy(true); const r=await mazosFetch(`/api/mazos/tool-router?task=${encodeURIComponent(routerTask)}`).then(r=>r.json()); setRouterRecs(r.recommendations||[]); setRouterBusy(false); }
-  useEffect(()=>{ document.documentElement.dataset.theme='dark'; const saved=localStorage.getItem('mazos-tab') as Tab|null; if(saved&&TABS.includes(saved)) setTab(saved); bridgeHealth().then(setBridge); refresh(); loadVault(); loadStatusDeck(); loadLoops(); loadDecisions(); loadShip(); loadSpine(); loadFeed(); loadSys(); const t=setInterval(()=>setClock(new Date().toLocaleTimeString()),1000); const ts=setInterval(loadSys,30_000); return()=>{clearInterval(t);clearInterval(ts);}; },[]);
+  async function routeTool(){ if(!routerTask.trim())return; setRouterBusy(true); const [r]=await Promise.all([mazosFetch(`/api/mazos/tool-router?task=${encodeURIComponent(routerTask)}`).then(r=>r.json()), loadRuntimes(routerTask)]); setRouterRecs(r.recommendations||[]); setRouterBusy(false); }
+  useEffect(()=>{ document.documentElement.dataset.theme='dark'; const saved=localStorage.getItem('mazos-tab') as Tab|null; if(saved&&TABS.includes(saved)) setTab(saved); bridgeHealth().then(setBridge); refresh(); loadVault(); loadStatusDeck(); loadLoops(); loadDecisions(); loadShip(); loadSpine(); loadFeed(); loadBrief(); loadContextMap(); loadRuntimes(); loadSys(); const t=setInterval(()=>setClock(new Date().toLocaleTimeString()),1000); const ts=setInterval(loadSys,30_000); return()=>{clearInterval(t);clearInterval(ts);}; },[]);
   useEffect(()=>{ localStorage.setItem('mazos-tab',tab); },[tab]);
   useEffect(()=>{ const h=(e:KeyboardEvent)=>{ if((e.ctrlKey&&e.key.toLowerCase()==='k')||(e.key==='/'&&!(e.target as HTMLElement).closest('input,textarea,select'))){ e.preventDefault(); setPaletteOpen(o=>!o); } if(e.key==='Escape') setPaletteOpen(false); }; window.addEventListener('keydown',h); return()=>window.removeEventListener('keydown',h); },[]);
   const summary=useMemo(()=> data ? { existing:data.repos.filter(r=>r.exists).length, dirty:data.repos.filter(r=>r.dirty).length, optionalDown:data.services.filter(s=>!s.online&&s.signal==='not-running').length, critical:data.services.filter(s=>!s.online&&s.signal!=='not-running').length } : null,[data]);
@@ -109,6 +118,10 @@ export default function Page() {
 
     {tab==='NOW'&&<>
       <SpinePanel spine={spine} run={runAction} open={setModal} reload={loadSpine}/>
+      <section className="split">
+        <ServerMorningBriefPanel brief={brief} open={setModal}/>
+        <ContextMapPanel contextMap={contextMap} open={setModal} reload={()=>loadContextMap('MAZos')}/>
+      </section>
       <section className="split">
         <Panel title="Loop Status" badge="control tower · click for deck"><div className="loopStrip">{loops.map(l=><button key={l.def.id} className={`loopChip ${l.status}`} onClick={()=>setTab('LOOPS')}><b>{l.def.name}</b><small>{l.status}{l.status!=='idle'?` · ${l.iteration}/${l.def.maxIterations} it · ${l.budgetUsedMinutes}/${l.def.budgetMinutes}m`:''}{l.stopReason?` · ${l.stopReason}`:''}</small></button>)}{loops.length===0&&<p className="muted">Loading loops…</p>}</div></Panel>
         <Panel title="Stale Work Radar" badge={`${findings.length} finding(s) · read-only`}>{findings.length===0?<p className="muted">Nothing stale. All trees clean and pushed.</p>:<div className="findings">{findings.slice(0,3).map((f,i)=><StaleRow key={i} f={f} repos={data.repos} open={setModal}/>)}</div>}{findings.length>3&&<button className="ghost wide" onClick={()=>setTab('PROJECTS')}>All {findings.length} findings → PROJECTS</button>}</Panel>
@@ -153,7 +166,8 @@ export default function Page() {
     {tab==='SYSTEM'&&<section className="split">
       <div><Panel title="Ops Radar" badge="local + cloud"><div className="radar">{data.services.map(s=><button key={s.id} onClick={()=>setModal({title:s.label,body:<ServiceDetail s={s}/>})} className={`orb ${s.online?'on':'off'} ${s.signal==='not-running'?'idle':''}`}><b>{s.label}</b><span>{s.online?`${s.status} · ${s.latencyMs}ms`:s.signal}</span><small>{s.url||s.path}</small></button>)}</div></Panel>
       <Panel title="Action Matrix" badge="click → summary modal">{cats.map(c=><div key={c} className="actionBlock"><h3>{c}</h3><div className="chips">{(byCat[c] as Action[]).map(a=><ActionLine key={a.id} a={a} run={runAction} busy={busy}/>)}</div></div>)}</Panel></div>
-      <Panel title="Run History" badge="last 8">{data.runs?.slice(0,8).map((r,i)=><button className="history" key={i} onClick={()=>setModal({title:r.label,body:<Result r={r}/>})}><span>{r.success?'✓':'✗'} {r.label}</span><small>{new Date(r.finishedAt).toLocaleTimeString()}</small></button>)}{(!data.runs||data.runs.length===0)&&<p className="muted">No runs yet.</p>}</Panel>
+      <div><RuntimeSafetyPanel registry={runtimeRegistry} open={setModal} reload={()=>loadRuntimes(routerTask)}/>
+      <Panel title="Run History" badge="last 8">{data.runs?.slice(0,8).map((r,i)=><button className="history" key={i} onClick={()=>setModal({title:r.label,body:<Result r={r}/>})}><span>{r.success?'✓':'✗'} {r.label}</span><small>{new Date(r.finishedAt).toLocaleTimeString()}</small></button>)}{(!data.runs||data.runs.length===0)&&<p className="muted">No runs yet.</p>}</Panel></div>
     </section>}
 
     {paletteOpen&&<CommandPalette actions={data.buttons} loops={loops} projects={statusDeck} close={()=>setPaletteOpen(false)} exec={{runAction,setTab,openLoopPrompt:(l:LoopState)=>setModal({title:`Loop prompt · ${l.def.name}`,body:<CopyBlock text={buildLoopPrompt(l.def)}/>})}}/>}
@@ -172,6 +186,55 @@ function SystemStrip({sys}:{sys:SystemInternals|null}){
     {sys.gpu&&<span className={sys.pressure.vram?'sysHot':''}>VRAM {gb(sys.gpu.vramUsedMb)}/{gb(sys.gpu.vramTotalMb)} GB · GPU {sys.gpu.utilizationPct}% · {sys.gpu.temperatureC}°C</span>}
     {sys.disk&&<span>{sys.disk.drive.replace('\\','')} {sys.disk.freeGb} GB free</span>}
   </div>;
+}
+function ServerMorningBriefPanel({brief,open}:{brief:ServerBrief|null;open:(m:{title:string;body:React.ReactNode})=>void}){
+  if(!brief) return <Panel title="Morning Brief API" badge="loading"><p className="muted">Building server-side brief from feed, context map, and evidence receipts.</p></Panel>;
+  return <Panel title="Morning Brief API" badge={`${new Date(brief.generatedAt).toLocaleTimeString()}${brief.degraded?' · degraded':''}`}>
+    <div className="briefApi">
+      <p className="eyebrow">SERVER BRIEF</p>
+      <h3>{brief.headline}</h3>
+      <p className="muted"><b>Ship:</b> {brief.shipNext}</p>
+      <p className="muted"><b>Avoid:</b> {brief.avoidToday}</p>
+      <div className="chips">
+        <button className="primary hot" style={{width:'auto'}} onClick={()=>open({title:'Morning brief markdown',body:<CopyBlock text={brief.markdown}/>})}>Copy Brief</button>
+        <button className="ghost" onClick={()=>open({title:'Safest next prompt',body:<CopyBlock text={brief.safestNextPrompt}/>})}>Safest Prompt</button>
+      </div>
+    </div>
+    <ul className="summaryList briefNeeds">{brief.needsYou.slice(0,4).map(item=><li key={item}>{item}</li>)}</ul>
+  </Panel>;
+}
+function ContextMapPanel({contextMap,open,reload}:{contextMap:ContextMap|null;open:(m:{title:string;body:React.ReactNode})=>void;reload:()=>void}){
+  if(!contextMap) return <Panel title="Context Map" badge="loading"><p className="muted">Collecting repo, vault, OpenWiki, tool, and verify receipts.</p></Panel>;
+  const readFirst=contextMap.receipts.filter(r=>r.readFirst);
+  return <Panel title="Context Map" badge={`${contextMap.receipts.length} receipt(s) · ${contextMap.project}`}>
+    <p className="muted"><b>Next:</b> {contextMap.nextBestAction}</p>
+    <p className="muted"><b>Blocker:</b> {contextMap.blocker}</p>
+    <div className="receiptGrid">{readFirst.slice(0,5).map(r=><button key={`${r.kind}-${r.pathOrUrl}-${r.title}`} className="receipt" onClick={()=>open({title:`Receipt · ${r.title}`,body:<ReceiptDetail receipt={r}/>})}><span className="tag">{r.kind}</span><b>{r.title}</b><small>{r.freshness}</small></button>)}</div>
+    {contextMap.missingKnowledge.length>0&&<p className="bad inline">{contextMap.missingKnowledge[0]}</p>}
+    <div className="chips">
+      <button className="ghost" onClick={()=>open({title:`Context prompt · ${contextMap.project}`,body:<CopyBlock text={contextMap.copyPrompt}/>})}>Copy Context Prompt</button>
+      <button className="ghost" onClick={reload}>Refresh</button>
+    </div>
+  </Panel>;
+}
+function ReceiptDetail({receipt}:{receipt:SourceReceipt}){
+  return <div><dl><dt>kind</dt><dd>{receipt.kind}</dd><dt>path/url</dt><dd>{receipt.pathOrUrl}</dd><dt>freshness</dt><dd>{receipt.freshness}</dd><dt>confidence</dt><dd>{receipt.confidence}</dd><dt>read first</dt><dd>{receipt.readFirst?'yes':'no'}</dd><dt>sensitive</dt><dd>{receipt.sensitive?'local/private':'public or non-local'}</dd></dl><p className="muted">Agents should quote this receipt when relying on it, and stop if it contradicts the task.</p></div>;
+}
+function RuntimeSafetyPanel({registry,open,reload}:{registry:AgentRuntimeRegistry|null;open:(m:{title:string;body:React.ReactNode})=>void;reload:()=>void}){
+  if(!registry) return <Panel title="Agent Runtime Safety" badge="loading"><p className="muted">Reading runtime registry and control-panel safety flags.</p></Panel>;
+  const rec=registry.runtimes.find(r=>r.id===registry.recommendedRuntimeId) || registry.runtimes[0];
+  const flags=registry.safety;
+  return <Panel title="Agent Runtime Safety" badge={`recommended: ${rec?.name || 'none'}`}>
+    <div className="safetyConsole">
+      <div className="flagRow"><span className={flags.safeMode?'ok':'bad'}>safe {String(flags.safeMode)}</span><span className={flags.allowShell?'bad':'ok'}>shell {String(flags.allowShell)}</span><span className={flags.allowPush?'bad':'ok'}>push {String(flags.allowPush)}</span><span className={flags.allowDestructive?'bad':'ok'}>destructive {String(flags.allowDestructive)}</span></div>
+      <p className="muted">{registry.recommendationReason}</p>
+      <div className="runtimeList">{registry.runtimes.map(r=><button key={r.id} className={`runtime ${r.id===registry.recommendedRuntimeId?'active':''}`} onClick={()=>open({title:`Runtime · ${r.name}`,body:<RuntimeDetail runtime={r}/>})}><b>{r.name}</b><small>{r.status} · {r.kind} · ceiling {r.safetyCeiling}</small></button>)}</div>
+      <button className="ghost wide" onClick={reload}>Refresh runtime registry</button>
+    </div>
+  </Panel>;
+}
+function RuntimeDetail({runtime}:{runtime:AgentRuntime}){
+  return <div><dl><dt>path</dt><dd>{runtime.pathHint}</dd><dt>modes</dt><dd>{runtime.allowedModes.join(', ')}</dd><dt>tasks</dt><dd>{runtime.preferredTasks.join(', ')}</dd><dt>bridge</dt><dd>{runtime.bridgeAware?'aware':'not needed'}</dd><dt>trace</dt><dd>{runtime.lastTraceHint}</dd></dl><h3>Validation</h3><ul className="summaryList">{runtime.validationCommands.map(c=><li key={c}>{c}</li>)}</ul><h3>Forbidden</h3><ul className="summaryList">{runtime.forbidden.map(c=><li key={c}>{c}</li>)}</ul></div>;
 }
 function BridgeBanner({bridge,refreshBridge}:{bridge:BridgeState;refreshBridge:()=>void}){
   const hosted = shouldUseLocalBridge();
