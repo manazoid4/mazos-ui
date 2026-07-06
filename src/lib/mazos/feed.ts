@@ -1,6 +1,6 @@
 import fs from 'fs';
 import crypto from 'crypto';
-import { DECISIONS_LOG, INGEST_QUEUE } from './paths';
+import { DECISIONS_LOG, INGEST_QUEUE, PATHS } from './paths';
 import { foldDecisions, type DecisionEvent } from './decisions';
 import { readRuns } from './logStore';
 import { buildShipLog } from './shipLog';
@@ -9,6 +9,7 @@ import { scanRepos } from './repoScanner';
 import { computeStaleFindings } from './staleRadar';
 import { getOpenWikiStatus } from './openWiki';
 import { getSystemInternals } from './systemInfo';
+import { readFeedState, stateFor, type FeedUserState } from './feedState';
 import type { SafetyLevel } from './safety';
 
 export type FeedItemType =
@@ -21,11 +22,37 @@ export type FeedItemType =
   | 'openwiki'
   | 'system';
 
+export type FeedLane =
+  | 'needs-decision'
+  | 'blocked'
+  | 'failed-checks'
+  | 'stale-work'
+  | 'ready-to-ship'
+  | 'knowledge-gaps'
+  | 'system-pressure'
+  | 'watch'
+  | 'done';
+
+export type EvidenceQuality = 'strong' | 'partial' | 'weak' | 'missing';
+
+export type ScoreBreakdown = {
+  urgency: number;
+  revenue: number;
+  blocker: number;
+  evidence: number;
+  risk: number;
+  recency: number;
+  shippingSpineFit: number;
+  systemPressure: number;
+  total: number;
+};
+
 export type FeedItem = {
   id: string;
   createdAt: string;
   updatedAt?: string;
   type: FeedItemType;
+  lane: FeedLane;
   source: string;
   product?: string;
   title: string;
@@ -34,10 +61,13 @@ export type FeedItem = {
   nextAction: string;
   evidence: string[];
   evidencePaths: string[];
+  evidenceQuality: EvidenceQuality;
   safety: SafetyLevel;
   score: number;
+  scoreBreakdown: ScoreBreakdown;
   requiresAttention: boolean;
   status: 'new' | 'active' | 'resolved' | 'muted';
+  userState: FeedUserState;
   href?: string;
   copyPrompt?: string;
 };
@@ -55,6 +85,7 @@ export type FeedResponse = {
     products: string[];
     types: FeedItemType[];
     attentionCount: number;
+    unreadCount: number;
   };
   items: FeedItem[];
   degraded: boolean;
@@ -71,7 +102,8 @@ type BuildFeedOptions = {
 type Spine = ReturnType<typeof buildShippingSpine>;
 type MoneyWeight = (product?: string) => number;
 
-const TYPE_BASE: Record<FeedItemType, number> = {
+// Actionability base by type: what most likely needs a human/agent to act.
+const TYPE_URGENCY: Record<FeedItemType, number> = {
   decision: 95,
   'shipping-spine': 90,
   run: 70,
@@ -82,12 +114,15 @@ const TYPE_BASE: Record<FeedItemType, number> = {
   system: 30,
 };
 
+const PRODUCT_REPO: Record<string, string> = {
+  jobfilter: PATHS.jobfilter,
+  recall: PATHS.recall,
+  mazos: PATHS.mazos_ui,
+  openflowkit: PATHS.openflowkit,
+};
+
 function idFor(...parts: string[]) {
   return crypto.createHash('sha1').update(parts.join('|')).digest('hex').slice(0, 12);
-}
-
-function clampScore(score: number) {
-  return Math.max(0, Math.min(100, Math.round(score)));
 }
 
 function ageBoost(iso: string) {
@@ -99,8 +134,43 @@ function ageBoost(iso: string) {
   return 0;
 }
 
-function itemScore(type: FeedItemType, createdAt: string, extras = 0) {
-  return clampScore(TYPE_BASE[type] + ageBoost(createdAt) + extras);
+function riskPenalty(safety: SafetyLevel) {
+  return safety === 'L4' || safety === 'L5' ? -6 : safety === 'L3' ? -3 : 0;
+}
+
+function evidenceQualityFor(i: { evidence: string[]; evidencePaths: string[]; href?: string; createdAt: string }): EvidenceQuality {
+  let s = Math.min(i.evidencePaths.length, 2);
+  if (i.evidence.filter(Boolean).length >= 2) s += 1;
+  if (i.href) s += 1;
+  if (Date.now() - new Date(i.createdAt).getTime() < 24 * 36e5) s += 1;
+  return s >= 4 ? 'strong' : s === 3 ? 'partial' : s >= 1 ? 'weak' : 'missing';
+}
+
+const EVIDENCE_WEIGHT: Record<EvidenceQuality, number> = { strong: 4, partial: 2, weak: 0, missing: -4 };
+
+function makeScore(parts: Omit<ScoreBreakdown, 'total'>): ScoreBreakdown {
+  const raw = parts.urgency + parts.revenue + parts.blocker + parts.evidence + parts.risk + parts.recency + parts.shippingSpineFit + parts.systemPressure;
+  return { ...parts, total: Math.max(0, Math.min(100, Math.round(raw))) };
+}
+
+type Draft = Omit<FeedItem, 'score' | 'scoreBreakdown' | 'evidenceQuality' | 'userState' | 'copyPrompt'> & { copyPrompt?: string };
+type Extras = Partial<Pick<ScoreBreakdown, 'urgency' | 'revenue' | 'blocker' | 'shippingSpineFit' | 'systemPressure'>>;
+
+// Single scoring path so every item carries an explainable breakdown.
+function finalize(draft: Draft, extras: Extras = {}, verify: string[] = []): FeedItem {
+  const evidenceQuality = evidenceQualityFor(draft);
+  const scoreBreakdown = makeScore({
+    urgency: TYPE_URGENCY[draft.type] + (extras.urgency || 0),
+    revenue: extras.revenue || 0,
+    blocker: extras.blocker || 0,
+    evidence: EVIDENCE_WEIGHT[evidenceQuality],
+    risk: riskPenalty(draft.safety),
+    recency: ageBoost(draft.createdAt),
+    shippingSpineFit: extras.shippingSpineFit || 0,
+    systemPressure: extras.systemPressure || 0,
+  });
+  const item: FeedItem = { ...draft, evidenceQuality, scoreBreakdown, score: scoreBreakdown.total, userState: 'unread' };
+  return { ...item, copyPrompt: draft.copyPrompt || promptFor(item, verify) };
 }
 
 function readDecisions() {
@@ -119,12 +189,14 @@ function readIngestQueue(limit = 5) {
 }
 
 function promptFor(item: Pick<FeedItem, 'title' | 'summary' | 'whyItMatters' | 'nextAction' | 'evidence' | 'evidencePaths' | 'safety' | 'product' | 'type'>, verify: string[] = []) {
+  const repo = item.product ? PRODUCT_REPO[item.product.toLowerCase()] : undefined;
   return [
     `You are handling one MAZos feed item. Scope: this item only.`,
     ``,
-    `OBJECTIVE: ${item.nextAction}`,
+    `MISSION: ${item.nextAction}`,
     `CONTEXT: [${item.type}${item.product ? ` · ${item.product}` : ''}] ${item.title} — ${item.summary}`,
     `WHY IT MATTERS: ${item.whyItMatters}`,
+    ...(repo ? [`REPO: ${repo}`] : []),
     `SAFETY CEILING: ${item.safety}`,
     ``,
     `EVIDENCE:`,
@@ -132,15 +204,21 @@ function promptFor(item: Pick<FeedItem, 'title' | 'summary' | 'whyItMatters' | '
     ``,
     `READ FIRST:`,
     ...(item.evidencePaths.length ? item.evidencePaths.map(p => `- ${p}`) : ['- Use the linked MAZos API/source.']),
+    ``,
+    `SUCCESS CRITERIA:`,
+    `- The mission above is done, or you report exactly why it cannot be done.`,
+    `- Verify commands pass and their output is quoted in the report.`,
     ...(verify.length ? [``, `VERIFY WITH:`, ...verify.map(v => `- ${v}`)] : []),
     ``,
+    `FORBIDDEN:`,
+    `- No destructive commands, force push, credential changes, or global installs.`,
+    `- No push to GitHub unless Maz explicitly asks.`,
+    `- Do not touch repos, branches, or files outside this item's scope.`,
+    ``,
+    `STOP AND ASK (file in the MAZos Decision Inbox instead of proceeding) if: evidence contradicts this item, secrets/credentials appear, or the fix would delete data.`,
+    ``,
     `REPORT BACK: 1) what you found, 2) what you changed or recommend, 3) exact verify output, 4) anything blocked and why.`,
-    `Stay prompt-first. Do not run shell beyond the verify commands, push, scrape private content, or mutate data unless Maz explicitly asks.`,
   ].join('\n');
-}
-
-function withPrompt(item: FeedItem, verify: string[] = []): FeedItem {
-  return { ...item, copyPrompt: item.copyPrompt || promptFor(item, verify) };
 }
 
 function decisionItems(warnings: string[]): FeedItem[] {
@@ -150,11 +228,12 @@ function decisionItems(warnings: string[]): FeedItem[] {
     const resolved = all.filter(d => d.status !== 'open').slice(0, 3);
     return [...open, ...resolved].map(d => {
       const isOpen = d.status === 'open';
-      const item: FeedItem = {
+      return finalize({
         id: `decision:${d.id}`,
         createdAt: d.resolvedAt || d.createdAt,
         updatedAt: d.resolvedAt || undefined,
         type: 'decision',
+        lane: isOpen ? 'needs-decision' : 'watch',
         source: d.source,
         title: isOpen ? `Human gate open: ${d.question}` : `Human gate ${d.status}: ${d.question}`,
         summary: d.context || d.resolution || 'Decision inbox event.',
@@ -163,12 +242,10 @@ function decisionItems(warnings: string[]): FeedItem[] {
         evidence: [d.context, d.resolution].filter(Boolean),
         evidencePaths: [DECISIONS_LOG],
         safety: 'L1',
-        score: itemScore('decision', d.resolvedAt || d.createdAt, isOpen ? 0 : -15),
         requiresAttention: isOpen,
         status: isOpen ? 'active' : 'resolved',
         href: '/#LOOPS',
-      };
-      return withPrompt(item);
+      }, { urgency: isOpen ? 0 : -15, blocker: isOpen ? 8 : 0 });
     });
   } catch (error) {
     warnings.push(`Decision feed unavailable: ${error instanceof Error ? error.message : String(error)}`);
@@ -180,28 +257,27 @@ function spineItems(spine: Spine | null, money: MoneyWeight): FeedItem[] {
   if (!spine) return [];
   const v = spine.verdict;
   const topRow = spine.rows.find(r => r.product === v.product);
-  const item: FeedItem = {
+  return [finalize({
     id: `shipping-spine:${idFor(v.product, v.action, spine.generatedAt.slice(0, 13))}`,
     createdAt: spine.generatedAt,
     type: 'shipping-spine',
+    lane: topRow?.blocked ? 'blocked' : 'ready-to-ship',
     source: '/api/mazos/shipping-spine',
     product: v.product,
     title: `Ship next: ${v.product}`,
     summary: v.action,
     whyItMatters: v.why,
     nextAction: v.action,
-    evidence: [`owner ${v.owner}`, `safety ${v.safety}`, `${spine.rows.length} product row(s) ranked`],
+    evidence: [`owner ${v.owner}`, `safety ${v.safety}`, topRow?.blocked ? `BLOCKED: ${topRow.blocker}` : `${spine.rows.length} product row(s) ranked`],
     evidencePaths: topRow?.evidencePaths || [],
     safety: v.safety,
-    score: itemScore('shipping-spine', spine.generatedAt, money(v.product)),
     requiresAttention: true,
     status: 'active',
     href: '/api/mazos/shipping-spine',
     // The spine handoff prompt is already scoped (repo, branch, verify, done
     // criteria) — reuse it instead of the generic feed prompt.
     copyPrompt: topRow?.handoffPrompt,
-  };
-  return [withPrompt(item)];
+  }, { revenue: money(v.product), shippingSpineFit: 5, blocker: topRow?.blocked ? 10 : 0 })];
 }
 
 function runItems(warnings: string[]): FeedItem[] {
@@ -211,10 +287,11 @@ function runItems(warnings: string[]): FeedItem[] {
     const passed = runs.filter(r => r.success).slice(0, 2); // last 2 passes are proof; older passes are noise
     return [...failed, ...passed].map((r: any) => {
       const isFail = !r.success;
-      const item: FeedItem = {
+      return finalize({
         id: `run:${r.finishedAt || r.startedAt}:${r.actionId}`,
         createdAt: r.finishedAt || r.startedAt || new Date().toISOString(),
         type: 'run',
+        lane: isFail ? 'failed-checks' : 'watch',
         source: r.actionId || 'run-history',
         title: `${isFail ? 'Run failed' : 'Run passed'}: ${r.label || r.actionId}`,
         summary: r.commandPreview || 'MAZos action run.',
@@ -223,12 +300,10 @@ function runItems(warnings: string[]): FeedItem[] {
         evidence: [String(r.stdout || r.stderr || '').split('\n').filter(Boolean)[0] || 'No output captured.'],
         evidencePaths: [],
         safety: isFail ? 'L2' : 'L1',
-        score: itemScore('run', r.finishedAt || r.startedAt || new Date().toISOString(), isFail ? 15 : -15),
         requiresAttention: isFail,
         status: isFail ? 'active' : 'resolved',
         href: '/#SYSTEM',
-      };
-      return withPrompt(item, r.commandPreview ? [r.commandPreview] : []);
+      }, { urgency: isFail ? 0 : -15, blocker: isFail ? 15 : 0 }, r.commandPreview ? [r.commandPreview] : []);
     });
   } catch (error) {
     warnings.push(`Run feed unavailable: ${error instanceof Error ? error.message : String(error)}`);
@@ -241,10 +316,12 @@ function staleItems(warnings: string[], money: MoneyWeight): FeedItem[] {
     const repos = scanRepos();
     return computeStaleFindings(repos).slice(0, 8).map(f => {
       const repo = repos.find(r => r.id === f.repoId);
-      const item: FeedItem = {
+      const critical = f.severity === 'critical';
+      return finalize({
         id: `stale:${f.repoId}:${idFor(f.title, f.evidence)}`,
         createdAt: new Date().toISOString(),
         type: 'stale-work',
+        lane: critical ? 'blocked' : 'stale-work',
         source: 'stale-radar',
         product: f.repoLabel,
         title: `${f.repoLabel}: ${f.title}`,
@@ -253,13 +330,11 @@ function staleItems(warnings: string[], money: MoneyWeight): FeedItem[] {
         nextAction: f.nextCommand,
         evidence: [f.evidence, repo ? `repo ${repo.path} · branch ${repo.branch}` : ''].filter(Boolean),
         evidencePaths: repo ? [repo.path] : [],
-        safety: f.severity === 'critical' ? 'L3' : 'L2',
-        score: itemScore('stale-work', new Date().toISOString(), (f.severity === 'critical' ? 10 : 0) + money(f.repoLabel)),
+        safety: critical ? 'L3' : 'L2',
         requiresAttention: f.severity !== 'info',
         status: 'active',
         href: '/#PROJECTS',
-      };
-      return withPrompt(item, ['git status --short', 'git log --oneline -3']);
+      }, { revenue: money(f.repoLabel), blocker: critical ? 10 : 0 }, ['git status --short', 'git log --oneline -3']);
     });
   } catch (error) {
     warnings.push(`Stale Radar feed unavailable: ${error instanceof Error ? error.message : String(error)}`);
@@ -272,10 +347,11 @@ function shipItems(warnings: string[], money: MoneyWeight, spineProduct?: string
     const ship = buildShipLog();
     return ship.days.flatMap(day => day.commits.slice(0, 4).map(c => {
       const onSpine = !!spineProduct && c.repo.toLowerCase() === spineProduct.toLowerCase();
-      const item: FeedItem = {
+      return finalize({
         id: `ship:${c.repo}:${c.hash}`,
         createdAt: `${c.day}T12:00:00.000Z`,
         type: 'ship-log',
+        lane: onSpine ? 'ready-to-ship' : 'watch',
         source: 'git-log',
         product: c.repo,
         title: `${c.repo}: ${c.subject}`,
@@ -285,11 +361,9 @@ function shipItems(warnings: string[], money: MoneyWeight, spineProduct?: string
         evidence: [`${c.repo} ${c.hash}`, c.subject],
         evidencePaths: [],
         safety: 'L1',
-        score: itemScore('ship-log', `${c.day}T12:00:00.000Z`, money(c.repo) + (onSpine ? 5 : -5)),
         requiresAttention: false,
         status: 'resolved',
-      };
-      return withPrompt(item);
+      }, { revenue: money(c.repo), shippingSpineFit: onSpine ? 5 : -5 });
     })).slice(0, 6);
   } catch (error) {
     warnings.push(`Ship Log feed unavailable: ${error instanceof Error ? error.message : String(error)}`);
@@ -303,10 +377,11 @@ function intakeItems(warnings: string[], money: MoneyWeight): FeedItem[] {
       const createdAt = q.queuedAt || new Date().toISOString();
       const label = q.url || q.fileName || 'Queued source';
       const social = ['instagram', 'x', 'tiktok'].includes(q.sourceType);
-      const item: FeedItem = {
+      return finalize({
         id: `intake:${idFor(label, createdAt)}`,
         createdAt,
         type: 'intake',
+        lane: 'watch',
         source: q.sourceType || 'intake',
         product: q.target || undefined,
         title: `Intake queued: ${q.sourceType || 'source'}`,
@@ -316,12 +391,10 @@ function intakeItems(warnings: string[], money: MoneyWeight): FeedItem[] {
         evidence: [label, q.notes || '', q.tags || ''].filter(Boolean),
         evidencePaths: [INGEST_QUEUE],
         safety: social ? 'L4' : 'L1',
-        score: itemScore('intake', createdAt, (social ? 10 : 0) + money(q.target)),
         requiresAttention: true,
         status: 'new',
         href: '/#INTAKE',
-      };
-      return withPrompt(item);
+      }, { urgency: social ? 10 : 0, revenue: money(q.target) });
     });
   } catch (error) {
     warnings.push(`Intake feed unavailable: ${error instanceof Error ? error.message : String(error)}`);
@@ -333,10 +406,11 @@ function openWikiItems(warnings: string[]): FeedItem[] {
   try {
     const ow = getOpenWikiStatus();
     const gap = ow.knowledgeGaps[0];
-    const item: FeedItem = {
+    return [finalize({
       id: `openwiki:${ow.generatedAt.slice(0, 13)}:${ow.counts.wikiPages}:${ow.counts.capturedContent}`,
       createdAt: ow.generatedAt,
       type: 'openwiki',
+      lane: gap ? 'knowledge-gaps' : 'watch',
       source: 'openwiki',
       product: 'OpenWiki',
       title: `OpenWiki health ${ow.healthScore}/100`,
@@ -346,12 +420,10 @@ function openWikiItems(warnings: string[]): FeedItem[] {
       evidence: ow.latestPages.slice(0, 3).map(p => p.title),
       evidencePaths: [ow.paths.db, ow.paths.source],
       safety: 'L1',
-      score: itemScore('openwiki', ow.generatedAt, gap ? 10 : -10),
       requiresAttention: !!gap,
       status: gap ? 'active' : 'resolved',
       href: '/openwiki',
-    };
-    return [withPrompt(item)];
+    }, { urgency: gap ? 10 : -10 })];
   } catch (error) {
     warnings.push(`OpenWiki feed unavailable: ${error instanceof Error ? error.message : String(error)}`);
     return [];
@@ -363,10 +435,11 @@ async function systemItems(warnings: string[]): Promise<FeedItem[]> {
     const sys = await getSystemInternals({ sampleCpu: false });
     if (!sys.local || (!sys.pressure.ram && !sys.pressure.vram)) return [];
     const what = [sys.pressure.ram ? `RAM ${sys.ram.usedPct}%` : '', sys.pressure.vram && sys.gpu ? `VRAM ${Math.round((sys.gpu.vramUsedMb / sys.gpu.vramTotalMb) * 100)}%` : ''].filter(Boolean).join(' · ');
-    const item: FeedItem = {
+    return [finalize({
       id: `system:pressure:${sys.generatedAt.slice(0, 13)}`,
       createdAt: sys.generatedAt,
       type: 'system',
+      lane: 'system-pressure',
       source: '/api/mazos/system',
       title: `Memory pressure: ${what}`,
       summary: `${sys.host} — RAM ${sys.ram.usedMb}/${sys.ram.totalMb} MB${sys.gpu ? `, VRAM ${sys.gpu.vramUsedMb}/${sys.gpu.vramTotalMb} MB (${sys.gpu.name})` : ''}.`,
@@ -375,11 +448,9 @@ async function systemItems(warnings: string[]): Promise<FeedItem[]> {
       evidence: [what],
       evidencePaths: [],
       safety: 'L1',
-      score: itemScore('system', sys.generatedAt, 40),
       requiresAttention: true,
       status: 'active',
-    };
-    return [withPrompt(item)];
+    }, { systemPressure: 40 })];
   } catch (error) {
     warnings.push(`System internals unavailable: ${error instanceof Error ? error.message : String(error)}`);
     return [];
@@ -394,6 +465,8 @@ function applyFilters(items: FeedItem[], options: BuildFeedOptions) {
     return true;
   });
 }
+
+const PARKED: FeedUserState[] = ['done', 'cleared', 'snoozed'];
 
 export async function buildFeed(options: BuildFeedOptions = {}): Promise<FeedResponse> {
   const warnings: string[] = [];
@@ -412,6 +485,7 @@ export async function buildFeed(options: BuildFeedOptions = {}): Promise<FeedRes
     return label === 'high' ? 8 : label === 'medium' ? 4 : 0;
   };
 
+  const states = readFeedState();
   const items = [
     ...decisionItems(warnings),
     ...spineItems(spine, money),
@@ -421,14 +495,23 @@ export async function buildFeed(options: BuildFeedOptions = {}): Promise<FeedRes
     ...intakeItems(warnings, money),
     ...openWikiItems(warnings),
     ...(await systemItems(warnings)),
-  ].sort((a, b) =>
+  ].map(item => {
+    const userState = stateFor(states, item.id);
+    // Done/cleared/snoozed items stay in the response (searchable) but park in
+    // the done lane and stop demanding attention.
+    return PARKED.includes(userState)
+      ? { ...item, userState, lane: 'done' as FeedLane, requiresAttention: false }
+      : { ...item, userState };
+  }).sort((a, b) =>
+    Number(PARKED.includes(a.userState)) - Number(PARKED.includes(b.userState)) ||
     Number(b.requiresAttention) - Number(a.requiresAttention) ||
     b.score - a.score ||
     b.createdAt.localeCompare(a.createdAt)
   );
 
   const filtered = applyFilters(items, options).slice(0, Math.min(Math.max(options.limit || 12, 1), 30));
-  const top = filtered[0] || null;
+  const live = filtered.filter(i => !PARKED.includes(i.userState));
+  const top = live[0] || null;
   const spineItem = items.find(i => i.type === 'shipping-spine');
   const changedWhatShipsNext = !!top && !!spineItem && top.id !== spineItem.id && top.score >= spineItem.score;
 
@@ -445,6 +528,7 @@ export async function buildFeed(options: BuildFeedOptions = {}): Promise<FeedRes
       products: Array.from(new Set(items.map(i => i.product).filter(Boolean))) as string[],
       types: Array.from(new Set(items.map(i => i.type))),
       attentionCount: items.filter(i => i.requiresAttention).length,
+      unreadCount: items.filter(i => i.userState === 'unread').length,
     },
     items: filtered,
     degraded: warnings.length > 0,
