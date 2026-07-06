@@ -274,6 +274,16 @@ Do not touch unrelated branches, submodules, generated data, or external agent-s
 - No full notification center with read/unread sync.
 - No new dependency unless unavoidable.
 
+## v1.2 Addendum (shipped 2026-07-06)
+
+The Operator Inbox stage supersedes parts of this spec:
+
+- Storage Option A ("no writes") upgraded to Option B lite: `data/mazos/feed-state.json` holds user states (unread/seen/saved/snoozed/done/cleared) via `POST /api/mazos/feed`; hosted degrades to session-only optimistic state.
+- Items gained `lane` (needs-decision, blocked, failed-checks, system-pressure, stale-work, ready-to-ship, knowledge-gaps, watch, done), `scoreBreakdown` (urgency/revenue/blocker/evidence/risk/recency/shippingSpineFit/systemPressure/total), `evidenceQuality` (strong/partial/weak/missing), `userState`.
+- UI is now a lane-grouped list + sticky detail pane (no modal on row click) topped by a Morning Command Brief; the flat card grid from v1 is gone.
+- `GET /api/mazos/flight-recorder?id&product` replays logged runs/gates/preflights/mission-plans/loop events for the selected item.
+- Visual rules live in `docs/MAZOS_DESIGN_DIRECTION.md`.
+
 ## Build Prompt For Next Agent
 
 You are implementing the MAZos AI Feed v1 from `specs/mazos-ai-feed.md`.

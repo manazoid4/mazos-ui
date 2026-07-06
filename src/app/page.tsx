@@ -20,8 +20,12 @@ type ShipLogData = { generatedAt:string; days:{day:string;commits:{repo:string;d
 type SpineRow = { product:string; productId:string; objective:string; nextAction:string; actionSource:string; commercialReason:string; evidence:string[]; evidencePaths:string[]; blocker:string; blocked:boolean; safety:SafetyLevel; owner:string; doneCriteria:string[]; moneyLabel:'high'|'medium'|'low'; score:number; repoPath:string|null; branch:string|null; github:string|null; dirty:number; commits7d:number; staleFindings:{severity:string;title:string}[]; openDecisions:{id:string;question:string}[]; handoffPrompt:string };
 type SpineData = { generatedAt:string; verdict:{product:string;action:string;why:string;owner:string;safety:SafetyLevel}; rows:SpineRow[]; savedTo:string; markdown:string };
 type FeedItemType = 'decision'|'shipping-spine'|'run'|'stale-work'|'ship-log'|'intake'|'openwiki'|'system';
-type FeedItem = { id:string; createdAt:string; updatedAt?:string; type:FeedItemType; source:string; product?:string; title:string; summary:string; whyItMatters:string; nextAction:string; evidence:string[]; evidencePaths:string[]; safety:SafetyLevel; score:number; requiresAttention:boolean; status:'new'|'active'|'resolved'|'muted'; href?:string; copyPrompt?:string };
-type FeedData = { generatedAt:string; mode:string; verdict:{changedWhatShipsNext:boolean; headline:string; nextAction:string; topItemId:string|null}; filters:{products:string[]; types:FeedItemType[]; attentionCount:number}; items:FeedItem[]; degraded:boolean; warnings:string[] };
+type FeedLane = 'needs-decision'|'blocked'|'failed-checks'|'stale-work'|'ready-to-ship'|'knowledge-gaps'|'system-pressure'|'watch'|'done';
+type FeedUserState = 'unread'|'seen'|'saved'|'snoozed'|'done'|'cleared';
+type ScoreBreakdown = { urgency:number; revenue:number; blocker:number; evidence:number; risk:number; recency:number; shippingSpineFit:number; systemPressure:number; total:number };
+type FeedItem = { id:string; createdAt:string; updatedAt?:string; type:FeedItemType; lane:FeedLane; source:string; product?:string; title:string; summary:string; whyItMatters:string; nextAction:string; evidence:string[]; evidencePaths:string[]; evidenceQuality:'strong'|'partial'|'weak'|'missing'; safety:SafetyLevel; score:number; scoreBreakdown:ScoreBreakdown; requiresAttention:boolean; status:'new'|'active'|'resolved'|'muted'; userState:FeedUserState; href?:string; copyPrompt?:string };
+type FeedData = { generatedAt:string; mode:string; verdict:{changedWhatShipsNext:boolean; headline:string; nextAction:string; topItemId:string|null}; filters:{products:string[]; types:FeedItemType[]; attentionCount:number; unreadCount:number}; items:FeedItem[]; degraded:boolean; warnings:string[] };
+type FlightRecord = { itemId:string; product?:string; events:{at:string;kind:string;label:string;ok?:boolean;detail?:string}[]; sources:string[]; notVerified:string[] };
 type SystemInternals = { generatedAt:string; local:boolean; host:string; uptimeHours:number; cpu:{model:string;cores:number;usagePct:number|null}; ram:{totalMb:number;usedMb:number;usedPct:number}; disk:{drive:string;totalGb:number;freeGb:number}|null; gpu:{name:string;vramTotalMb:number;vramUsedMb:number;utilizationPct:number;temperatureC:number}|null; pressure:{ram:boolean;vram:boolean} };
 type Tab = 'NOW'|'FEED'|'LOOPS'|'PROJECTS'|'INTAKE'|'SYSTEM';
 type BridgeState = { checked:boolean; available:boolean; url:string; detail:string };
@@ -67,7 +71,7 @@ export default function Page() {
   const [loops,setLoops]=useState<LoopState[]>([]); const [decisions,setDecisions]=useState<DecisionItem[]>([]);
   const [ship,setShip]=useState<ShipLogData|null>(null);
   const [spine,setSpine]=useState<SpineData|null>(null);
-  const [feed,setFeed]=useState<FeedData|null>(null), [feedAttention,setFeedAttention]=useState(false), [feedProduct,setFeedProduct]=useState(''), [feedType,setFeedType]=useState('');
+  const [feed,setFeed]=useState<FeedData|null>(null);
   const [paletteOpen,setPaletteOpen]=useState(false);
   const [bridge,setBridge]=useState<BridgeState>({checked:false,available:false,url:LOCAL_BRIDGE,detail:'Checking local bridge...'});
   const [sys,setSys]=useState<SystemInternals|null>(null);
@@ -79,13 +83,13 @@ export default function Page() {
   async function loadDecisions(){ const r=await mazosFetch('/api/mazos/decisions').then(r=>r.json()); setDecisions(r.decisions||[]); }
   async function loadShip(){ const r=await mazosFetch('/api/mazos/shiplog').then(r=>r.json()); setShip(r); }
   async function loadSpine(){ try{ const r=await mazosFetch('/api/mazos/shipping-spine').then(r=>r.json()); if(!r.error) setSpine(r); }catch{ /* spine loads lazily; NOW view shows loading state */ } }
-  async function loadFeed(){ const qs=new URLSearchParams({limit:'18'}); if(feedProduct) qs.set('product',feedProduct); if(feedType) qs.set('type',feedType); if(feedAttention) qs.set('attentionOnly','true'); const r=await mazosFetch(`/api/mazos/feed?${qs.toString()}`).then(r=>r.json()); setFeed(r); }
+  async function loadFeed(){ const r=await mazosFetch('/api/mazos/feed?limit=30').then(r=>r.json()); setFeed(r); }
+  async function setFeedState(id:string,state:FeedUserState){ setFeed(f=>f?{...f,items:f.items.map(i=>i.id===id?{...i,userState:state}:i)}:f); await mazosFetch('/api/mazos/feed',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,state})}).catch(()=>undefined); }
   async function loopEvent(loopId:string, type:string, extra:Record<string,string>={}){ const r=await mazosFetch('/api/mazos/loops',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({loopId,type,...extra})}).then(r=>r.json()); if(r.loops) setLoops(r.loops); if(type==='gate') loadDecisions(); }
   async function resolveDecision(id:string, status:string, resolution:string){ const r=await mazosFetch('/api/mazos/decisions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'resolve',id,status,resolution})}).then(r=>r.json()); if(r.decisions){ setDecisions(r.decisions); const item=(r.decisions as DecisionItem[]).find(d=>d.id===id); if(item) setModal({title:'Resolution prompt · paste to the waiting agent',body:<CopyBlock text={buildResolutionPrompt(item)}/>}); } }
   async function addDecision(question:string, context:string){ const r=await mazosFetch('/api/mazos/decisions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'open',source:'manual',question,context})}).then(r=>r.json()); if(r.decisions) setDecisions(r.decisions); }
   async function routeTool(){ if(!routerTask.trim())return; setRouterBusy(true); const r=await mazosFetch(`/api/mazos/tool-router?task=${encodeURIComponent(routerTask)}`).then(r=>r.json()); setRouterRecs(r.recommendations||[]); setRouterBusy(false); }
   useEffect(()=>{ document.documentElement.dataset.theme='dark'; const saved=localStorage.getItem('mazos-tab') as Tab|null; if(saved&&TABS.includes(saved)) setTab(saved); bridgeHealth().then(setBridge); refresh(); loadVault(); loadStatusDeck(); loadLoops(); loadDecisions(); loadShip(); loadSpine(); loadFeed(); loadSys(); const t=setInterval(()=>setClock(new Date().toLocaleTimeString()),1000); const ts=setInterval(loadSys,30_000); return()=>{clearInterval(t);clearInterval(ts);}; },[]);
-  useEffect(()=>{ loadFeed(); },[feedAttention,feedProduct,feedType]);
   useEffect(()=>{ localStorage.setItem('mazos-tab',tab); },[tab]);
   useEffect(()=>{ const h=(e:KeyboardEvent)=>{ if((e.ctrlKey&&e.key.toLowerCase()==='k')||(e.key==='/'&&!(e.target as HTMLElement).closest('input,textarea,select'))){ e.preventDefault(); setPaletteOpen(o=>!o); } if(e.key==='Escape') setPaletteOpen(false); }; window.addEventListener('keydown',h); return()=>window.removeEventListener('keydown',h); },[]);
   const summary=useMemo(()=> data ? { existing:data.repos.filter(r=>r.exists).length, dirty:data.repos.filter(r=>r.dirty).length, optionalDown:data.services.filter(s=>!s.online&&s.signal==='not-running').length, critical:data.services.filter(s=>!s.online&&s.signal!=='not-running').length } : null,[data]);
@@ -113,7 +117,7 @@ export default function Page() {
     </>}
 
     {tab==='FEED'&&<>
-      <FeedPanel feed={feed} attention={feedAttention} setAttention={setFeedAttention} product={feedProduct} setProduct={setFeedProduct} type={feedType} setType={setFeedType} reload={loadFeed} open={setModal} goNow={()=>setTab('NOW')}/>
+      <FeedPanel feed={feed} reload={loadFeed} open={setModal} goNow={()=>setTab('NOW')} setState={setFeedState}/>
     </>}
 
     {tab==='LOOPS'&&<>
@@ -311,36 +315,122 @@ function SpineRowCard({r,open}:{r:SpineRow;open:(m:{title:string;body:React.Reac
     </div>
   </article>;
 }
-function FeedPanel({feed,attention,setAttention,product,setProduct,type,setType,reload,open,goNow}:{feed:FeedData|null;attention:boolean;setAttention:(v:boolean)=>void;product:string;setProduct:(v:string)=>void;type:string;setType:(v:string)=>void;reload:()=>void;open:(m:{title:string;body:React.ReactNode})=>void;goNow:()=>void}){
-  if(!feed) return <Panel title="AI Feed" badge="aggregating local evidence…"><p className="muted">Reading Shipping Spine, decisions, runs, ship log, stale radar, intake queue, and OpenWiki.</p></Panel>;
-  const top=feed.items.find(i=>i.id===feed.verdict.topItemId)||feed.items[0];
-  return <Panel title="AI Feed" badge={`${feed.filters.attentionCount} attention · ${feed.mode}${feed.degraded?' · degraded':''}`}>
-    <div className={`feedVerdict ${feed.verdict.changedWhatShipsNext?'changed':''}`}>
-      <div><p className="eyebrow">WHAT CHANGED</p><h3>{feed.verdict.headline}</h3><p className="muted">{feed.verdict.nextAction}</p>{feed.verdict.changedWhatShipsNext&&<p className="bad inline">This may change what ships next. Compare against Shipping Spine before launching an agent.</p>}</div>
-      <div className="chips feedVerdictBtns">{top?.copyPrompt&&<button className="primary hot" style={{width:'auto'}} onClick={()=>{navigator.clipboard.writeText(top.copyPrompt||''); open({title:`Feed prompt · ${top.title}`,body:<CopyBlock text={top.copyPrompt||''}/>});}}>COPY TOP PROMPT</button>}<button className="ghost" onClick={goNow}>Spine (NOW)</button><button className="ghost" onClick={reload}>Refresh</button></div>
-    </div>
-    <div className="feedFilters">
-      <button className={`tabBtn ${attention?'active':''}`} onClick={()=>setAttention(!attention)}>ATTENTION</button>
-      <select className="input slim" value={product} onChange={e=>setProduct(e.target.value)}><option value="">All products</option>{feed.filters.products.map(p=><option key={p} value={p}>{p}</option>)}</select>
-      <select className="input slim" value={type} onChange={e=>setType(e.target.value)}><option value="">All types</option>{feed.filters.types.map(t=><option key={t} value={t}>{t}</option>)}</select>
-      {(product||type||attention)&&<button className="ghost" onClick={()=>{setProduct('');setType('');setAttention(false);}}>Clear</button>}
-    </div>
-    {feed.warnings.length>0&&<details><summary>degraded sources</summary><ul className="summaryList">{feed.warnings.map(w=><li key={w}>{w}</li>)}</ul></details>}
-    <div className="feedList">{feed.items.length===0?<p className="muted">No feed items matched this filter.</p>:feed.items.slice(0,12).map(item=><FeedItemCard key={item.id} item={item} open={open}/>)}</div>
-  </Panel>;
+const LANES: {id:FeedLane; label:string}[] = [
+  {id:'needs-decision',label:'Needs Decision'},
+  {id:'blocked',label:'Blocked'},
+  {id:'failed-checks',label:'Failed Checks'},
+  {id:'system-pressure',label:'System Pressure'},
+  {id:'stale-work',label:'Stale Work'},
+  {id:'ready-to-ship',label:'Ready to Ship'},
+  {id:'knowledge-gaps',label:'Knowledge Gaps'},
+  {id:'watch',label:'Watch'},
+];
+const PARKED_STATES:FeedUserState[]=['done','cleared','snoozed'];
+function ago(iso:string){ const m=Math.max(0,Math.round((Date.now()-new Date(iso).getTime())/60000)); if(m<60) return `${m}m`; const h=Math.round(m/60); if(h<48) return `${h}h`; return `${Math.round(h/24)}d`; }
+function laneOf(i:FeedItem):FeedLane{ return PARKED_STATES.includes(i.userState)?'done':i.lane; }
+
+function FeedPanel({feed,reload,open,goNow,setState}:{feed:FeedData|null;reload:()=>void;open:(m:{title:string;body:React.ReactNode})=>void;goNow:()=>void;setState:(id:string,s:FeedUserState)=>void}){
+  const [selId,setSelId]=useState<string|null>(null);
+  const [q,setQ]=useState('');
+  const [rec,setRec]=useState<FlightRecord|null>(null);
+  const items=useMemo(()=>{ const all=feed?.items||[]; const needle=q.trim().toLowerCase(); return needle?all.filter(i=>`${i.title} ${i.summary} ${i.product||''} ${i.type}`.toLowerCase().includes(needle)):all; },[feed,q]);
+  const live=items.filter(i=>laneOf(i)!=='done'); const parked=items.filter(i=>laneOf(i)==='done');
+  const sel=items.find(i=>i.id===selId)||live[0]||items[0]||null;
+  useEffect(()=>{ if(!sel){ setRec(null); return; } let stop=false;
+    mazosFetch(`/api/mazos/flight-recorder?id=${encodeURIComponent(sel.id)}${sel.product?`&product=${encodeURIComponent(sel.product)}`:''}`).then(r=>r.json()).then(r=>{ if(!stop) setRec(r); }).catch(()=>{ if(!stop) setRec(null); });
+    if(sel.userState==='unread') setState(sel.id,'seen');
+    return ()=>{ stop=true; };
+  },[sel?.id]);
+  useEffect(()=>{ const h=(e:KeyboardEvent)=>{ if((e.target as HTMLElement).closest('input,textarea,select')) return; if(e.key!=='ArrowDown'&&e.key!=='ArrowUp') return; e.preventDefault(); const list=[...live,...parked]; const idx=Math.max(0,list.findIndex(i=>i.id===(sel?.id))); const next=list[Math.min(list.length-1,Math.max(0,idx+(e.key==='ArrowDown'?1:-1)))]; if(next) setSelId(next.id); }; window.addEventListener('keydown',h); return()=>window.removeEventListener('keydown',h); },[live,parked,sel?.id]);
+  if(!feed) return <Panel title="Operator Inbox" badge="aggregating local evidence…"><p className="muted">Reading Shipping Spine, decisions, runs, ship log, stale radar, intake queue, OpenWiki, and system internals.</p></Panel>;
+  return <>
+    <MorningBrief feed={feed} items={feed.items} open={open} goNow={goNow}/>
+    <Panel title="Operator Inbox" badge={`${feed.filters.unreadCount} unread · ${feed.filters.attentionCount} attention · ${feed.mode}${feed.degraded?' · degraded':''}`}>
+      <div className="inboxTools">
+        <input className="input slim" placeholder="Search all items, including done…" value={q} onChange={e=>setQ(e.target.value)}/>
+        <button className="ghost" onClick={reload}>Refresh</button>
+        {feed.warnings.length>0&&<button className="ghost" onClick={()=>open({title:'Degraded sources',body:<ul className="summaryList">{feed.warnings.map(w=><li key={w}>{w}</li>)}</ul>})}>degraded ({feed.warnings.length})</button>}
+      </div>
+      <div className="inboxLayout">
+        <div className="inboxList">
+          {LANES.map(lane=>{ const rows=live.filter(i=>laneOf(i)===lane.id); if(!rows.length) return null; return <div key={lane.id} className="inboxLane">
+            <p className={`laneHead lane-${lane.id}`}>{lane.label} <span>{rows.length}</span></p>
+            {rows.map(i=><InboxRow key={i.id} i={i} sel={sel?.id===i.id} pick={()=>setSelId(i.id)}/>)}
+          </div>; })}
+          {live.length===0&&<p className="muted inboxEmpty">Inbox zero. Nothing needs you — ship the spine priority or step away.</p>}
+          {parked.length>0&&<details className="inboxDone"><summary>Done / Cleared · {parked.length}</summary>{parked.map(i=><InboxRow key={i.id} i={i} sel={sel?.id===i.id} pick={()=>setSelId(i.id)}/>)}</details>}
+        </div>
+        <div className="inboxDetail">{sel?<DetailPane i={sel} rec={rec} open={open} setState={setState}/>:<p className="muted">Select an item.</p>}</div>
+      </div>
+    </Panel>
+  </>;
 }
-function FeedItemCard({item,open}:{item:FeedItem;open:(m:{title:string;body:React.ReactNode})=>void}){
-  return <article className={`feedItem ${item.requiresAttention?'needsAttention':''}`}>
-    <div className="repoTop"><h3>{item.title}</h3><span className="rowTags"><span className="tag">{item.type}</span>{item.product&&<span className="tag">{item.product}</span>}<SafetyBadge level={item.safety}/><span className={`tag ${item.requiresAttention?'blockedTag':''}`}>score {item.score}</span></span></div>
-    <p className="feedSummary">{item.summary}</p>
-    <p><b>Why:</b> {item.whyItMatters}</p>
-    <p><b>Next:</b> {item.nextAction}</p>
-    <small className="dim">{new Date(item.createdAt).toLocaleString()} · {item.source} · {item.status}</small>
-    <div className="chips">
-      <button className="ghost" onClick={()=>open({title:`Evidence · ${item.title}`,body:<div><h3>Evidence</h3><ul className="summaryList">{item.evidence.length?item.evidence.map(e=><li key={e}>{e}</li>):<li>No evidence attached.</li>}</ul><h3>Paths</h3><ul className="summaryList">{item.evidencePaths.length?item.evidencePaths.map(p=><li key={p}>{p}</li>):<li>No evidence paths.</li>}</ul></div>})}>Evidence</button>
-      {item.copyPrompt&&<button className="ghost" onClick={()=>{navigator.clipboard.writeText(item.copyPrompt||''); open({title:`Prompt · ${item.title}`,body:<CopyBlock text={item.copyPrompt||''}/>});}}>Copy prompt</button>}
-      <button className="ghost" title="Score this as an agent task in the Task Gate" onClick={()=>{localStorage.setItem('mazos-taskgate-draft',JSON.stringify({task:`${item.nextAction}\n\nContext: [${item.type}${item.product?` · ${item.product}`:''}] ${item.title} — ${item.summary}`,product:item.product||''})); location.href='/sessions';}}>→ Task Gate</button>
-      {item.href&&<button className="ghost" onClick={()=>{ if(item.href!.startsWith('http')||item.href!.startsWith('/api/')) window.open(item.href,'_blank','noreferrer'); else if(item.href!.startsWith('/#')){ localStorage.setItem('mazos-tab',item.href!.slice(2)); location.href='/'; } else location.href=item.href!; }}>Open</button>}
+
+function MorningBrief({feed,items,open,goNow}:{feed:FeedData;items:FeedItem[];open:(m:{title:string;body:React.ReactNode})=>void;goNow:()=>void}){
+  const live=items.filter(i=>!PARKED_STATES.includes(i.userState));
+  const count=(l:FeedLane)=>live.filter(i=>laneOf(i)===l).length;
+  const spine=live.find(i=>i.type==='shipping-spine');
+  const pressure=live.find(i=>i.lane==='system-pressure');
+  const gaps=count('knowledge-gaps');
+  const top=live[0];
+  const ignore=[...live].reverse().find(i=>i.lane==='watch'&&!i.requiresAttention);
+  const stat=(n:number,label:string)=> n>0?<span className="briefStat hotStat"><b>{n}</b> {label}</span>:<span className="briefStat"><b>0</b> {label}</span>;
+  return <section className="panel brief">
+    <div className="panelHead"><h2>Morning Command Brief</h2><small>{new Date(feed.generatedAt).toLocaleTimeString()} · {feed.filters.unreadCount} unread</small></div>
+    <div className="briefShip">
+      <div><p className="eyebrow">SHIP NEXT</p><h3>{spine?`${spine.product} — ${spine.summary}`:feed.verdict.headline}</h3>
+        {feed.verdict.changedWhatShipsNext&&<p className="bad inline">Something outranked the Shipping Spine today — read Needs Decision / Failed Checks first.</p>}
+      </div>
+      <div className="chips briefBtns">
+        {top?.copyPrompt&&<button className="primary hot" style={{width:'auto'}} onClick={()=>{navigator.clipboard.writeText(top.copyPrompt||''); open({title:`Safest next prompt · ${top.title}`,body:<CopyBlock text={top.copyPrompt||''}/>});}}>SAFEST NEXT PROMPT</button>}
+        <button className="ghost" onClick={goNow}>Spine (NOW)</button>
+      </div>
+    </div>
+    <div className="briefStats">
+      {stat(count('needs-decision'),'decisions')}
+      {stat(count('failed-checks'),'failed checks')}
+      {stat(count('blocked'),'blocked')}
+      {stat(count('stale-work'),'stale')}
+      {gaps>0?stat(gaps,'knowledge gaps'):null}
+      {pressure&&<span className="briefStat hotStat"><b>!</b> {pressure.title}</span>}
+      {ignore&&<span className="briefStat dimStat">ignore: {ignore.title.slice(0,60)}</span>}
+    </div>
+  </section>;
+}
+
+function InboxRow({i,sel,pick}:{i:FeedItem;sel:boolean;pick:()=>void}){
+  return <button className={`inboxRow ${sel?'sel':''} ${i.userState==='unread'?'unread':''}`} onClick={pick}>
+    <span className={`rowDot eq-${i.evidenceQuality} ${i.requiresAttention?'hot':''}`}/>
+    <span className="rowMain"><b>{i.title}</b><small>{i.summary}</small></span>
+    <span className="rowMeta">{i.product&&<span className="tag">{i.product}</span>}<span className="tag">{i.score}</span><small>{ago(i.createdAt)}</small></span>
+  </button>;
+}
+
+function DetailPane({i,rec,open,setState}:{i:FeedItem;rec:FlightRecord|null;open:(m:{title:string;body:React.ReactNode})=>void;setState:(id:string,s:FeedUserState)=>void}){
+  const bd=i.scoreBreakdown;
+  const parts=([['urgency',bd.urgency],['revenue',bd.revenue],['blocker',bd.blocker],['evidence',bd.evidence],['risk',bd.risk],['recency',bd.recency],['spine fit',bd.shippingSpineFit],['pressure',bd.systemPressure]] as [string,number][]).filter(([,v])=>v!==0);
+  return <article className="detail">
+    <div className="repoTop"><h3>{i.title}</h3><span className="rowTags"><span className="tag">{i.type}</span><SafetyBadge level={i.safety}/><span className={`tag eqTag eq-${i.evidenceQuality}`}>evidence {i.evidenceQuality}</span></span></div>
+    <small className="dim">{new Date(i.createdAt).toLocaleString()} · {i.source} · {i.status} · {i.userState}</small>
+    <p className="detailSummary">{i.summary}</p>
+    <p><b>Why:</b> {i.whyItMatters}</p>
+    <p><b>Next:</b> {i.nextAction}</p>
+    <div className="scoreLine" title="Why this rank">score {bd.total} = {parts.map(([k,v])=>`${k} ${v>0?'+':''}${v}`).join(' · ')}</div>
+    {i.evidence.length>0&&<><p className="detailLabel">EVIDENCE</p><ul className="summaryList">{i.evidence.slice(0,4).map(e=><li key={e}>{e}</li>)}</ul></>}
+    {i.evidencePaths.length>0&&<><p className="detailLabel">READ FIRST</p><ul className="summaryList pathList">{i.evidencePaths.slice(0,3).map(p=><li key={p}>{p}</li>)}</ul></>}
+    <p className="detailLabel">FLIGHT RECORDER</p>
+    {!rec&&<p className="muted">Loading logged history…</p>}
+    {rec&&rec.events.length===0&&<p className="muted">Nothing logged for this item yet.</p>}
+    {rec&&rec.events.length>0&&<div className="flight">{rec.events.slice(0,8).map((e,idx)=><div key={idx} className={`flightEv ${e.ok===false?'bad':''}`}><small>{e.at?ago(e.at):'—'}</small><span className="tag">{e.kind}</span><span>{e.label}</span></div>)}</div>}
+    {rec&&rec.notVerified.length>0&&<ul className="summaryList notVerified">{rec.notVerified.map(n=><li key={n}>{n}</li>)}</ul>}
+    <div className="chips detailActions">
+      {i.copyPrompt&&<button className="primary hot" style={{width:'auto'}} onClick={()=>{navigator.clipboard.writeText(i.copyPrompt||''); open({title:`Prompt · ${i.title}`,body:<CopyBlock text={i.copyPrompt||''}/>});}}>COPY PROMPT</button>}
+      <button className="ghost" title="Score this as an agent task in the Task Gate" onClick={()=>{localStorage.setItem('mazos-taskgate-draft',JSON.stringify({task:`${i.nextAction}\n\nContext: [${i.type}${i.product?` · ${i.product}`:''}] ${i.title} — ${i.summary}`,product:i.product||''})); location.href='/sessions';}}>→ Task Gate</button>
+      {i.href&&<button className="ghost" onClick={()=>{ if(i.href!.startsWith('http')||i.href!.startsWith('/api/')) window.open(i.href,'_blank','noreferrer'); else if(i.href!.startsWith('/#')){ localStorage.setItem('mazos-tab',i.href!.slice(2)); location.href='/'; } else location.href=i.href!; }}>Open</button>}
+    </div>
+    <div className="chips stateActions">
+      {(['saved','snoozed','done','cleared'] as FeedUserState[]).map(s=><button key={s} className={`ghost ${i.userState===s?'active':''}`} onClick={()=>setState(i.id,i.userState===s?'seen':s)}>{s==='snoozed'?'snooze':s}</button>)}
+      {i.userState!=='unread'&&<button className="ghost" onClick={()=>setState(i.id,'unread')}>mark unread</button>}
     </div>
   </article>;
 }
