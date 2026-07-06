@@ -48,6 +48,27 @@ export type LoopFactoryDraft = {
   readiness: LoopReadiness;
   warnings: string[];
   evidenceRequired: string[];
+  audit: LoopUsefulnessAudit;
+};
+
+export type LoopUsefulnessDecision = 'keep' | 'revise' | 'merge' | 'remove';
+
+export type LoopUsefulnessAudit = {
+  score: number;
+  decision: LoopUsefulnessDecision;
+  label: string;
+  strengths: string[];
+  gaps: string[];
+  dimensions: {
+    trigger: number;
+    sourcePolicy: number;
+    latestGithub: number;
+    evidence: number;
+    verifier: number;
+    safety: number;
+    stopCondition: number;
+    productImpact: number;
+  };
 };
 
 export const LOOP_FACTORY_PATTERNS: { id: Exclude<LoopPatternId, 'auto'>; label: string; description: string }[] = [
@@ -112,6 +133,56 @@ export function scoreLoopReadiness(input: LoopReadinessInput): LoopReadinessResu
     readiness: clamped >= 80 ? 'ready' : clamped >= 50 ? 'needs-review' : 'unsafe',
     warnings,
   };
+}
+
+function hasAny(text: string, terms: string[]) {
+  return terms.some((term) => text.includes(term));
+}
+
+function dimension(value: boolean, strong = 12, weak = 4) {
+  return value ? strong : weak;
+}
+
+export function auditLoopUsefulness(def: LoopDef, sources: string[] = []): LoopUsefulnessAudit {
+  const text = `${def.id} ${def.name} ${def.goal} ${def.promptTemplate} ${def.successCondition} ${def.humanGates.join(' ')}`.toLowerCase();
+  const dimensions = {
+    trigger: dimension(hasAny(text, ['daily', 'weekly', 'watch', 'queue', 'pr', 'pull request', 'build', 'ship log', 'intake', 'schedule', 'every']), 12, 3),
+    sourcePolicy: Math.min(14, (sources.length ? 8 : 0) + (hasAny(text, ['read ', 'read first', 'source', 'url', 'path', 'git log', 'public', 'bounded']) ? 6 : 0)),
+    latestGithub: dimension(hasAny(text, ['github', 'git ', 'git status', 'git log', 'pr', 'pull request', 'branch', 'ci']), 10, 2),
+    evidence: dimension(hasAny(text, ['evidence', 'source receipt', 'exact output', 'proof', 'report:', 'where it was filed']), 14, 3),
+    verifier: dimension(hasAny(text, ['verify', 'build', 'lint', 'test', 'review', 'ci', 'proof needed']), 12, 3),
+    safety: def.safetyCeiling === 'L1' ? 10 : def.safetyCeiling === 'L2' ? 9 : def.safetyCeiling === 'L3' ? 7 : 3,
+    stopCondition: Math.min(14, (def.successCondition.trim() ? 5 : 0) + (def.maxIterations <= 10 ? 3 : 0) + (def.budgetMinutes <= 90 ? 3 : 0) + (def.humanGates.length ? 3 : 0)),
+    productImpact: dimension(hasAny(text, ['jobfilter', 'recall', 'mazos', 'openflowkit', 'competitor', 'revenue', 'lead', 'ship', 'build', 'pr', 'intake', 'vault']), 14, 4),
+  };
+  const score = Math.max(0, Math.min(100, Object.values(dimensions).reduce((sum, value) => sum + value, 0)));
+  const gaps: string[] = [];
+  const strengths: string[] = [];
+  if (dimensions.trigger < 8) gaps.push('Trigger is vague; say when this loop should run.');
+  else strengths.push('Trigger is concrete enough to schedule or launch manually.');
+  if (dimensions.sourcePolicy < 10) gaps.push('Source policy is weak; add bounded URLs, files, or read-first receipts.');
+  else strengths.push('Sources are bounded or clearly named.');
+  if (dimensions.latestGithub < 7) gaps.push('Latest GitHub/source freshness is not explicit.');
+  else strengths.push('Git/GitHub freshness is part of the loop.');
+  if (dimensions.evidence < 10) gaps.push('Evidence receipt requirements are weak.');
+  else strengths.push('Evidence requirements are visible.');
+  if (dimensions.verifier < 8) gaps.push('Verifier is weak; add build, lint, test, review, or proof checks.');
+  else strengths.push('Verification path is named.');
+  if (dimensions.stopCondition < 10) gaps.push('Stop conditions need tighter budget, iteration, success, or human-gate rules.');
+  else strengths.push('Stop conditions are bounded.');
+  if (dimensions.productImpact < 10) gaps.push('Product impact is unclear; tie it to a named product or revenue/shipping outcome.');
+  else strengths.push('Product impact is clear.');
+
+  const decision: LoopUsefulnessDecision = score >= 82 ? 'keep' : score >= 64 ? 'revise' : score >= 46 ? 'merge' : 'remove';
+  const label = decision === 'keep'
+    ? 'Useful now'
+    : decision === 'revise'
+      ? 'Useful after tightening'
+      : decision === 'merge'
+        ? 'Merge into a stronger loop'
+        : 'Remove or rewrite';
+
+  return { score, decision, label, strengths: strengths.slice(0, 4), gaps: gaps.slice(0, 5), dimensions };
 }
 
 function draftResearchLoop(goal: string, project: string, sources: string[]): { def: LoopDef; evidenceRequired: string[] } {
@@ -195,6 +266,7 @@ export function generateLoopDraft(input: LoopFactoryInput): LoopFactoryDraft {
     readiness: readiness.readiness,
     warnings: readiness.warnings,
     evidenceRequired: draft.evidenceRequired,
+    audit: auditLoopUsefulness(draft.def, sources),
   };
 }
 

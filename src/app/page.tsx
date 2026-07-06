@@ -33,7 +33,9 @@ type ServerBrief = { generatedAt:string; headline:string; shipNext:string; needs
 type AgentRuntime = { id:string; name:string; kind:string; status:string; pathHint:string; safetyCeiling:SafetyLevel; allowedModes:string[]; preferredTasks:string[]; forbidden:string[]; validationCommands:string[]; bridgeAware:boolean; lastTraceHint:string };
 type AgentRuntimeRegistry = { generatedAt:string; safety:{safeMode:boolean; allowShell:boolean; allowPush:boolean; allowDestructive:boolean}; recommendedRuntimeId:string; recommendationReason:string; runtimes:AgentRuntime[] };
 type LoopPatternId = 'auto'|'research-intelligence'|'daily-triage'|'pr-babysitter'|'build-doctor'|'intake-drainer'|'ship-log';
-type LoopFactoryDraft = { pattern:Exclude<LoopPatternId,'auto'>; def:LoopState['def']; readinessScore:number; readiness:'ready'|'needs-review'|'unsafe'; warnings:string[]; evidenceRequired:string[] };
+type LoopUsefulnessAudit = { score:number; decision:'keep'|'revise'|'merge'|'remove'; label:string; strengths:string[]; gaps:string[]; dimensions:Record<string,number> };
+type LoopFactoryDraft = { pattern:Exclude<LoopPatternId,'auto'>; def:LoopState['def']; readinessScore:number; readiness:'ready'|'needs-review'|'unsafe'; warnings:string[]; evidenceRequired:string[]; audit:LoopUsefulnessAudit };
+type AuditedLoopState = LoopState & { audit?:LoopUsefulnessAudit };
 type Tab = 'NOW'|'INBOX'|'WORK'|'INTAKE'|'SYSTEM';
 type BridgeState = { checked:boolean; available:boolean; url:string; detail:string };
 
@@ -76,7 +78,7 @@ export default function Page() {
   const [statusDeck,setStatusDeck]=useState<ProjectStatus[]>([]);
   const [routerTask,setRouterTask]=useState(''), [routerRecs,setRouterRecs]=useState<ToolRec[]>([]), [routerBusy,setRouterBusy]=useState(false);
   const [tab,setTab]=useState<Tab>('NOW');
-  const [loops,setLoops]=useState<LoopState[]>([]); const [decisions,setDecisions]=useState<DecisionItem[]>([]);
+  const [loops,setLoops]=useState<AuditedLoopState[]>([]); const [decisions,setDecisions]=useState<DecisionItem[]>([]);
   const [loopFactory,setLoopFactory]=useState({ goal:'Research JobFilter competitors weekly and turn what works into product moves.', project:'JobFilter', pattern:'auto' as LoopPatternId, sources:'' });
   const [loopDraft,setLoopDraft]=useState<LoopFactoryDraft|null>(null);
   const [ship,setShip]=useState<ShipLogData|null>(null);
@@ -136,6 +138,7 @@ export default function Page() {
         <div className="repos">{statusDeck.map(s=><ProjectCard key={s.query} status={s} open={setModal} pack={loadContextPack} busy={busy}/>)}</div>
       </Panel>
       <LoopFactoryPanel form={loopFactory} setForm={setLoopFactory} draft={loopDraft} busy={busy} draftLoop={draftLoop} saveLoop={saveLoop} open={setModal}/>
+      <LoopDoctorPanel loops={loops}/>
       <Panel title="Loop Engineering Deck" badge="prompts out · evidence in · MAZos never executes"><div className="loopDeck">{loops.map(l=><LoopCard key={l.def.id} loop={l} event={loopEvent} open={setModal}/>)}</div></Panel>
       <DecisionInbox decisions={decisions} resolve={resolveDecision} add={addDecision} open={setModal}/>
       <ContextMapPanel contextMap={contextMap} open={setModal} reload={()=>loadContextMap('MAZos')}/>
@@ -270,6 +273,28 @@ function CommandPalette({actions,loops,projects,close,exec}:{actions:Action[];lo
   </section></div>;
 }
 
+function decisionClass(decision?:LoopUsefulnessAudit['decision']){
+  return decision==='keep'?'ok':decision==='remove'?'bad':decision==='merge'?'merge':'revise';
+}
+function LoopDoctorPanel({loops}:{loops:AuditedLoopState[]}){
+  const audits=loops.map(l=>l.audit).filter(Boolean) as LoopUsefulnessAudit[];
+  const avg=audits.length?Math.round(audits.reduce((sum,a)=>sum+a.score,0)/audits.length):0;
+  const counts={keep:audits.filter(a=>a.decision==='keep').length,revise:audits.filter(a=>a.decision==='revise').length,merge:audits.filter(a=>a.decision==='merge').length,remove:audits.filter(a=>a.decision==='remove').length};
+  const topGaps=Array.from(new Set(audits.flatMap(a=>a.gaps))).slice(0,4);
+  return <Panel title="Loop Doctor" badge={`${avg}/100 average · ${counts.keep} keep · ${counts.revise} revise · ${counts.merge} merge · ${counts.remove} remove`}>
+    <div className="doctorGrid">
+      <div className="doctorScore"><b>{avg}</b><span>average usefulness</span><small>Scored on trigger, source policy, latest GitHub, evidence, verifier, safety, stops, and product impact.</small></div>
+      <div className="doctorDecisions">
+        {(['keep','revise','merge','remove'] as const).map(d=><span key={d} className={`doctorPill ${decisionClass(d)}`}><b>{counts[d]}</b>{d}</span>)}
+      </div>
+      <div className="doctorGaps">
+        <b>Top cleanup gaps</b>
+        {topGaps.length?<ul>{topGaps.map(g=><li key={g}>{g}</li>)}</ul>:<p className="muted">No major gaps found.</p>}
+      </div>
+    </div>
+  </Panel>;
+}
+
 function LoopFactoryPanel({form,setForm,draft,busy,draftLoop,saveLoop,open}:{form:{goal:string;project:string;pattern:LoopPatternId;sources:string};setForm:(v:{goal:string;project:string;pattern:LoopPatternId;sources:string})=>void;draft:LoopFactoryDraft|null;busy:string;draftLoop:()=>void;saveLoop:()=>void;open:(m:{title:string;body:React.ReactNode})=>void}){
   const update=<K extends keyof typeof form>(key:K,value:(typeof form)[K])=>setForm({...form,[key]:value});
   const canSave=!!draft&&draft.readiness!=='unsafe';
@@ -303,6 +328,7 @@ function LoopFactoryPanel({form,setForm,draft,busy,draftLoop,saveLoop,open}:{for
       <div>
         {!draft?<p className="muted">Draft a loop to see its readiness score, gates, evidence requirements, and reusable runner prompt before it enters the deck.</p>:<article className={`repo loopCard ${draft.readiness}`}>
           <div className="repoTop"><h3>{draft.def.name}</h3><span className={draft.readiness==='ready'?'ok':draft.readiness==='unsafe'?'bad':'tag'}>{draft.readinessScore} · {draft.readiness}</span></div>
+          <div className={`doctorMini ${decisionClass(draft.audit.decision)}`}><b>{draft.audit.score}</b><span>{draft.audit.label}</span></div>
           <small>{draft.def.goal}</small>
           <dl>
             <dt>pattern</dt><dd>{draft.pattern}</dd>
@@ -312,6 +338,7 @@ function LoopFactoryPanel({form,setForm,draft,busy,draftLoop,saveLoop,open}:{for
           </dl>
           <p><b>Success:</b> {draft.def.successCondition}</p>
           {draft.warnings.length>0&&<><p className="detailLabel">WARNINGS</p><ul className="summaryList">{draft.warnings.map(w=><li className="bad inline" key={w}>{w}</li>)}</ul></>}
+          {draft.audit.gaps.length>0&&<><p className="detailLabel">DOCTOR GAPS</p><ul className="summaryList">{draft.audit.gaps.slice(0,3).map(w=><li key={w}>{w}</li>)}</ul></>}
           <p className="detailLabel">EVIDENCE REQUIRED</p>
           <ul className="summaryList">{draft.evidenceRequired.map(e=><li key={e}>{e}</li>)}</ul>
           <p className="detailLabel">HUMAN GATES</p>
@@ -322,11 +349,12 @@ function LoopFactoryPanel({form,setForm,draft,busy,draftLoop,saveLoop,open}:{for
   </Panel>;
 }
 
-function LoopCard({loop,event,open}:{loop:LoopState;event:(id:string,type:string,extra?:Record<string,string>)=>void;open:(m:{title:string;body:React.ReactNode})=>void}){
+function LoopCard({loop,event,open}:{loop:AuditedLoopState;event:(id:string,type:string,extra?:Record<string,string>)=>void;open:(m:{title:string;body:React.ReactNode})=>void}){
   const d=loop.def; const [note,setNote]=useState(''); const [stopReason,setStopReason]=useState<LoopStopReason>('manual');
   const active=loop.status==='running'||loop.status==='gated';
   return <article className={`repo loopCard ${loop.status}`}>
     <div className="repoTop"><h3>{d.name}</h3><span className={loop.status==='complete'?'ok':loop.status==='stopped'||loop.status==='gated'?'bad':'ok'}>{loop.status}</span></div>
+    {loop.audit&&<div className={`doctorMini ${decisionClass(loop.audit.decision)}`}><b>{loop.audit.score}</b><span>{loop.audit.label}</span></div>}
     <small>{d.goal}</small>
     <dl>
       <dt>agent</dt><dd>{d.agent}</dd>
@@ -337,6 +365,7 @@ function LoopCard({loop,event,open}:{loop:LoopState;event:(id:string,type:string
       <dt>gates</dt><dd title={d.humanGates.join(' · ')}>{d.humanGates.length} human gate(s)</dd>
     </dl>
     {loop.lastEvent&&<p className="muted lastEvent">last: {loop.lastEvent.type}{loop.lastEvent.summary?` — ${loop.lastEvent.summary}`:''}{loop.stopReason?` (${loop.stopReason})`:''}</p>}
+    {loop.audit?.gaps?.length ? <p className="muted lastEvent">doctor: {loop.audit.gaps[0]}</p> : null}
     <div className="chips">
       <button className="primary" style={{width:'auto'}} onClick={()=>{const p=buildLoopPrompt(d); navigator.clipboard.writeText(p); open({title:`Loop prompt · ${d.name}`,body:<CopyBlock text={p}/>});}}>COPY LOOP PROMPT</button>
       {!active&&<button className="ghost" onClick={()=>event(d.id,'start')}>Start</button>}
