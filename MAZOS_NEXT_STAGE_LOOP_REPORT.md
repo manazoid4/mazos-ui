@@ -63,6 +63,23 @@ MAZos should be more than a dashboard. The useful moat is that every agent sessi
 
 ## Next Loop
 
-1. Connect Context Map receipts directly into Task Gate mission plans.
-2. Add a dedicated `/context` page with saved project views and missing-knowledge cleanup.
-3. Let Flight Recorder link runtime recommendations and context receipts to each session.
+1. Add a dedicated `/context` page with saved project views and missing-knowledge cleanup.
+2. Let Flight Recorder link runtime recommendations and context receipts to each session.
+3. Add receipt usefulness feedback so MAZos learns which sources actually helped.
+
+## Iteration 2 Addendum
+
+Branch: `agents/task-gate-context-receipts`
+
+After PR #23 merged, this loop connected Source Receipts directly into Task Gate mission planning:
+
+- `createMissionPlan()` now builds a Context Map for the target repo/project.
+- Saved mission plan Markdown includes Source Receipts and a copyable Context Prompt.
+- The generated Hermes prompt includes a `SOURCE RECEIPTS - READ BEFORE ACTING` block and rules for quoting receipts, stopping on contradictions, and protecting sensitive local/vault paths.
+- `/sessions` shows Source Receipts and the Context Map prompt on generated mission plans.
+
+Validation:
+
+- `npm run lint`: passed.
+- `npm run build`: passed with the existing non-fatal Next/Turbopack warnings.
+- `POST http://127.0.0.1:3053/api/mazos/mission-plan`: 200, returned 10 source receipts, and `hermesPrompt` included `SOURCE RECEIPTS`.

@@ -43,6 +43,8 @@ type MissionPlan = {
   forbiddenActions: string[];
   validationCommands: string[];
   hermesPrompt: string;
+  sourceReceipts?: { title: string; kind: string; pathOrUrl: string; freshness: string; confidence: string; readFirst: boolean; sensitive: boolean; product?: string }[];
+  contextPrompt?: string;
   fallbackPlan: string[];
   handoffTemplate: string;
   score: number;
@@ -308,6 +310,20 @@ export default function SessionsPage() {
         <article><b>Likely files</b><ul>{plan.likelyFiles.map((file) => <li key={file}>{file}</li>)}</ul></article>
         <article><b>Fallback</b><ul>{plan.fallbackPlan.map((item) => <li key={item}>{item}</li>)}</ul></article>
       </div>
+      {plan.sourceReceipts && plan.sourceReceipts.length > 0 && <div className="copyPanel">
+        <div className="repoTop">
+          <h3>Source Receipts</h3>
+          <button className="ghost" onClick={() => copy(plan.sourceReceipts!.map((r) => `[${r.kind}] ${r.title}: ${r.pathOrUrl} (${r.confidence}, ${r.freshness})`).join('\n'), 'source receipts')}>Copy</button>
+        </div>
+        <ul className="summaryList pathList">{plan.sourceReceipts.slice(0, 10).map((receipt) => <li key={`${receipt.kind}-${receipt.pathOrUrl}-${receipt.title}`}><b>[{receipt.kind}]</b> {receipt.title} — {receipt.pathOrUrl} <span className={receipt.sensitive ? 'bad inline' : 'ok inline'}>{receipt.sensitive ? 'local/private' : receipt.confidence}</span></li>)}</ul>
+      </div>}
+      {plan.contextPrompt && <div className="copyPanel">
+        <div className="repoTop">
+          <h3>Context Map Prompt</h3>
+          <button className="ghost" onClick={() => copy(plan.contextPrompt || '', 'context prompt')}>Copy</button>
+        </div>
+        <pre>{plan.contextPrompt}</pre>
+      </div>}
       <div className="copyPanel">
         <div className="repoTop">
           <h3>Exact Hermes Launch Prompt</h3>
