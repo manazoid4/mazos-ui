@@ -12,7 +12,11 @@ export type LoopPatternId =
   | 'pr-babysitter'
   | 'build-doctor'
   | 'intake-drainer'
-  | 'ship-log';
+  | 'ship-log'
+  | 'github-pulse'
+  | 'useless-feature-reaper'
+  | 'revenue-radar'
+  | 'founder-inbox';
 
 export type LoopFactoryInput = {
   goal: string;
@@ -78,6 +82,10 @@ export const LOOP_FACTORY_PATTERNS: { id: Exclude<LoopPatternId, 'auto'>; label:
   { id: 'build-doctor', label: 'Build Doctor', description: 'Repeat build/lint repair with small scoped fixes.' },
   { id: 'intake-drainer', label: 'Intake Drainer', description: 'Process queued sources one at a time with gates.' },
   { id: 'ship-log', label: 'Ship Log', description: 'Summarize recent shipped work into durable notes.' },
+  { id: 'github-pulse', label: 'GitHub Pulse', description: 'Read latest pushes, PRs, issues, releases, and checks before recommending work.' },
+  { id: 'useless-feature-reaper', label: 'Useless Feature Reaper', description: 'Find panels, loops, or features with weak evidence, unclear trigger, or low product value.' },
+  { id: 'revenue-radar', label: 'Revenue Radar', description: 'Track pricing, funnel, Stripe, onboarding, and lead-quality gaps.' },
+  { id: 'founder-inbox', label: 'Founder Inbox', description: 'Turn scattered asks into ranked loops, decisions, and receipts.' },
 ];
 
 const RESEARCH_MATCHES = ['competitor', 'market', 'research', 'emulate', 'copy', 'pricing', 'positioning', 'landing page', 'funnel', 'alternative'];
@@ -106,6 +114,10 @@ function classifyPattern(input: LoopFactoryInput): Exclude<LoopPatternId, 'auto'
   if (RESEARCH_MATCHES.some((term) => goal.includes(term))) return 'research-intelligence';
   if (goal.includes('pr') || goal.includes('pull request') || goal.includes('branch')) return 'pr-babysitter';
   if (goal.includes('build') || goal.includes('lint') || goal.includes('ci')) return 'build-doctor';
+  if (goal.includes('github') || goal.includes('latest push') || goal.includes('latest pushes') || goal.includes('release') || goal.includes('checks')) return 'github-pulse';
+  if (goal.includes('useless') || goal.includes('cleanup') || goal.includes('remove') || goal.includes('reaper') || goal.includes('bloat')) return 'useless-feature-reaper';
+  if (goal.includes('revenue') || goal.includes('stripe') || goal.includes('pricing') || goal.includes('conversion') || goal.includes('lead quality')) return 'revenue-radar';
+  if (goal.includes('inbox') || goal.includes('messages') || goal.includes('scattered') || goal.includes('asks')) return 'founder-inbox';
   if (goal.includes('intake') || goal.includes('queue') || goal.includes('source')) return 'intake-drainer';
   if (goal.includes('ship log') || goal.includes('changelog') || goal.includes('release')) return 'ship-log';
   return 'daily-triage';
@@ -217,7 +229,121 @@ function draftResearchLoop(goal: string, project: string, sources: string[]): { 
   };
 }
 
-function draftOperationalLoop(pattern: Exclude<LoopPatternId, 'auto' | 'research-intelligence'>, goal: string, project: string, sources: string[]): { def: LoopDef; evidenceRequired: string[] } {
+function draftGithubPulseLoop(goal: string, project: string, sources: string[]): { def: LoopDef; evidenceRequired: string[] } {
+  const scopedSources = sources.length ? sources.map((source) => `- ${source}`).join('\n') : '- GitHub repo URL or local git remote for the selected project.';
+  return {
+    def: {
+      id: customLoopId(project, goal),
+      name: `${project} GitHub Pulse`,
+      agent: 'Codex',
+      safetyCeiling: 'L1',
+      goal,
+      promptTemplate: [
+        `Run a GitHub Pulse loop for ${project}.`,
+        `Use the latest GitHub state as source of truth before making any recommendation.`,
+        `READ FIRST:`,
+        scopedSources,
+        ``,
+        `For each repo or PR found, collect: pushed_at, latest commit, open PRs, failed checks, releases, issues that affect shipping, and unmerged agent branches.`,
+        `Return a ranked queue with: what changed recently, what needs action, what can be ignored, and which MAZos loop should handle it next.`,
+        `Do not push, merge, close, or edit anything. This is L1 report-only.`,
+      ].join('\n'),
+      successCondition: `A latest-GitHub snapshot for ${project} is produced with ranked actions and explicit ignore decisions.`,
+      maxIterations: 2,
+      budgetMinutes: 30,
+      noProgressStop: 1,
+      humanGates: ['GitHub auth required', 'Private repo access missing', 'Any push/merge/close action', 'Recommendation depends on a failing or missing check'],
+    },
+    evidenceRequired: ['GitHub repo URL', 'Fetch time', 'pushed_at or latest commit timestamp', 'PR/check/issue links used', 'Ranked next action or ignore reason'],
+  };
+}
+
+function draftUselessFeatureReaperLoop(goal: string, project: string, sources: string[]): { def: LoopDef; evidenceRequired: string[] } {
+  const scopedSources = sources.length ? sources.map((source) => `- ${source}`).join('\n') : '- Current MAZos UI files, research reports, and Loop Doctor output.';
+  return {
+    def: {
+      id: customLoopId(project, goal),
+      name: `${project} Useless Feature Reaper`,
+      agent: 'Codex',
+      safetyCeiling: 'L1',
+      goal,
+      promptTemplate: [
+        `Run a Useless Feature Reaper loop for ${project}.`,
+        `READ FIRST:`,
+        scopedSources,
+        ``,
+        `Score each candidate panel, route, loop, or feature on: clear trigger, source freshness, evidence, verifier, human gate, product impact, and repeated user value.`,
+        `Return four buckets: keep, revise, merge, remove.`,
+        `For remove/merge candidates, include the exact user harm, what replaces it, and what proof would change the decision.`,
+        `Do not delete or edit anything. Produce a cleanup plan only.`,
+      ].join('\n'),
+      successCondition: `A keep/revise/merge/remove cleanup plan exists for ${project} with evidence and replacement paths.`,
+      maxIterations: 2,
+      budgetMinutes: 35,
+      noProgressStop: 1,
+      humanGates: ['Deleting code or files', 'Removing a user-visible route', 'Changing navigation', 'Removing a feature with active evidence'],
+    },
+    evidenceRequired: ['File or route inspected', 'Why it is useful or not useful', 'User/value impact', 'Replacement or merge target', 'Proof needed before removal'],
+  };
+}
+
+function draftRevenueRadarLoop(goal: string, project: string, sources: string[]): { def: LoopDef; evidenceRequired: string[] } {
+  const scopedSources = sources.length ? sources.map((source) => `- ${source}`).join('\n') : '- Pricing page, Stripe setup notes, onboarding path, lead scoring, and competitor pricing sources.';
+  return {
+    def: {
+      id: customLoopId(project, goal),
+      name: `${project} Revenue Radar`,
+      agent: 'Hermes',
+      safetyCeiling: 'L1',
+      goal,
+      promptTemplate: [
+        `Run a Revenue Radar loop for ${project}.`,
+        `READ FIRST:`,
+        scopedSources,
+        ``,
+        `Find revenue blockers across pricing, onboarding, payment setup, lead quality, conversion copy, trust signals, and competitor positioning.`,
+        `Return: top blocker, expected revenue impact, evidence, proof needed, and one safest next product move.`,
+        `Do not change Stripe, env vars, payment links, or customer data.`,
+      ].join('\n'),
+      successCondition: `One revenue-facing blocker is ranked for ${project} with evidence, proof needed, and a safe next move.`,
+      maxIterations: 2,
+      budgetMinutes: 30,
+      noProgressStop: 1,
+      humanGates: ['Stripe/payment change', 'Pricing change', 'Customer outreach', 'Any production env var or database change'],
+    },
+    evidenceRequired: ['Pricing or funnel source', 'Observed blocker', 'Revenue hypothesis', 'Proof needed', 'Safe next action'],
+  };
+}
+
+function draftFounderInboxLoop(goal: string, project: string, sources: string[]): { def: LoopDef; evidenceRequired: string[] } {
+  const scopedSources = sources.length ? sources.map((source) => `- ${source}`).join('\n') : '- User messages, notes, vault session notes, and MAZos feed items.';
+  return {
+    def: {
+      id: customLoopId(project, goal),
+      name: `${project} Founder Inbox`,
+      agent: 'Hermes',
+      safetyCeiling: 'L1',
+      goal,
+      promptTemplate: [
+        `Run a Founder Inbox loop for ${project}.`,
+        `READ FIRST:`,
+        scopedSources,
+        ``,
+        `Turn scattered asks into a ranked operating queue. For each item, classify it as decision, research, code PR, cleanup, revenue, or park.`,
+        `Return max 7 items with source, why it matters, loop to run next, and what should be ignored.`,
+        `Do not send messages, create reminders, or mutate external systems.`,
+      ].join('\n'),
+      successCondition: `A ranked queue of founder asks exists with loop assignments and ignore/park decisions.`,
+      maxIterations: 1,
+      budgetMinutes: 20,
+      noProgressStop: 1,
+      humanGates: ['Sending a reply', 'Creating external reminders', 'Accessing private inbox content not explicitly provided', 'Making a commitment on behalf of the founder'],
+    },
+    evidenceRequired: ['Source message or note', 'Classified action type', 'Why it matters', 'Assigned loop', 'Park/ignore reason when applicable'],
+  };
+}
+
+function draftOperationalLoop(pattern: Exclude<LoopPatternId, 'auto' | 'research-intelligence' | 'github-pulse' | 'useless-feature-reaper' | 'revenue-radar' | 'founder-inbox'>, goal: string, project: string, sources: string[]): { def: LoopDef; evidenceRequired: string[] } {
   const template = LOOP_TEMPLATES.find((loop) => {
     if (pattern === 'daily-triage') return loop.id === 'daily_triage_l1';
     if (pattern === 'pr-babysitter') return loop.id === 'pr_babysitter';
@@ -246,6 +372,14 @@ export function generateLoopDraft(input: LoopFactoryInput): LoopFactoryDraft {
   const pattern = classifyPattern({ ...input, goal });
   const draft = pattern === 'research-intelligence'
     ? draftResearchLoop(goal, project, sources)
+    : pattern === 'github-pulse'
+      ? draftGithubPulseLoop(goal, project, sources)
+      : pattern === 'useless-feature-reaper'
+        ? draftUselessFeatureReaperLoop(goal, project, sources)
+        : pattern === 'revenue-radar'
+          ? draftRevenueRadarLoop(goal, project, sources)
+          : pattern === 'founder-inbox'
+            ? draftFounderInboxLoop(goal, project, sources)
     : draftOperationalLoop(pattern, goal, project, sources);
   const readiness = scoreLoopReadiness({
     goal,

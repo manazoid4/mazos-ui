@@ -32,7 +32,7 @@ type ContextMap = { generatedAt:string; project:string; repoPath:string|null; bl
 type ServerBrief = { generatedAt:string; headline:string; shipNext:string; needsYou:string[]; avoidToday:string; safestNextPrompt:string; evidence:string[]; markdown:string; degraded:boolean; warnings:string[] };
 type AgentRuntime = { id:string; name:string; kind:string; status:string; pathHint:string; safetyCeiling:SafetyLevel; allowedModes:string[]; preferredTasks:string[]; forbidden:string[]; validationCommands:string[]; bridgeAware:boolean; lastTraceHint:string };
 type AgentRuntimeRegistry = { generatedAt:string; safety:{safeMode:boolean; allowShell:boolean; allowPush:boolean; allowDestructive:boolean}; recommendedRuntimeId:string; recommendationReason:string; runtimes:AgentRuntime[] };
-type LoopPatternId = 'auto'|'research-intelligence'|'daily-triage'|'pr-babysitter'|'build-doctor'|'intake-drainer'|'ship-log';
+type LoopPatternId = 'auto'|'research-intelligence'|'daily-triage'|'pr-babysitter'|'build-doctor'|'intake-drainer'|'ship-log'|'github-pulse'|'useless-feature-reaper'|'revenue-radar'|'founder-inbox';
 type LoopUsefulnessAudit = { score:number; decision:'keep'|'revise'|'merge'|'remove'; label:string; strengths:string[]; gaps:string[]; dimensions:Record<string,number> };
 type LoopFactoryDraft = { pattern:Exclude<LoopPatternId,'auto'>; def:LoopState['def']; readinessScore:number; readiness:'ready'|'needs-review'|'unsafe'; warnings:string[]; evidenceRequired:string[]; audit:LoopUsefulnessAudit };
 type AuditedLoopState = LoopState & { audit?:LoopUsefulnessAudit };
@@ -314,6 +314,10 @@ function LoopFactoryPanel({form,setForm,draft,busy,draftLoop,saveLoop,open}:{for
               ['build-doctor','Build doctor'],
               ['intake-drainer','Intake drainer'],
               ['ship-log','Ship log'],
+              ['github-pulse','GitHub pulse'],
+              ['useless-feature-reaper','Useless feature reaper'],
+              ['revenue-radar','Revenue radar'],
+              ['founder-inbox','Founder inbox'],
             ].map(([id,label])=><option key={id} value={id}>{label}</option>)}
           </select>
         </div>
