@@ -4,10 +4,11 @@ import { foldDecisions, type DecisionEvent } from './decisions';
 import { readRuns } from './logStore';
 import { TASK_GATE_HISTORY } from './taskGate';
 import { MISSION_PLAN_DIR } from './missionPlanner';
+import { readLoopReceipts } from './loopReceipts';
 
 export type FlightEvent = {
   at: string;
-  kind: 'run' | 'gate' | 'task-gate' | 'mission-plan' | 'loop';
+  kind: 'run' | 'gate' | 'task-gate' | 'mission-plan' | 'loop' | 'receipt';
   label: string;
   ok?: boolean;
   detail?: string;
@@ -100,6 +101,20 @@ export function buildFlightRecord(itemId: string, product?: string): FlightRecor
     const text = `${l.loopId || ''} ${l.summary || ''}`;
     if (!matches(text, product)) continue;
     events.push({ at: l.at || l.timestamp || '', kind: 'loop', label: `loop ${l.type || 'event'}: ${l.loopId || ''}`, detail: l.summary || undefined });
+  }
+
+  const receipts = readLoopReceipts(40);
+  if (receipts.length) sources.push('loop receipts');
+  for (const receipt of receipts) {
+    const text = `${receipt.loopId} ${receipt.loopName} ${receipt.goal} ${receipt.evidence.join(' ')}`;
+    if (!matches(text, product)) continue;
+    events.push({
+      at: receipt.createdAt,
+      kind: 'receipt',
+      label: `receipt ${receipt.status}: ${receipt.loopName}`,
+      ok: receipt.status === 'completed' ? true : receipt.status === 'stopped' ? false : undefined,
+      detail: receipt.evidence[0] || receipt.nextRunSuggestion,
+    });
   }
 
   events.sort((a, b) => b.at.localeCompare(a.at));

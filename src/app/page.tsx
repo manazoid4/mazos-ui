@@ -35,7 +35,8 @@ type AgentRuntimeRegistry = { generatedAt:string; safety:{safeMode:boolean; allo
 type LoopPatternId = 'auto'|'research-intelligence'|'daily-triage'|'pr-babysitter'|'build-doctor'|'intake-drainer'|'ship-log'|'github-pulse'|'useless-feature-reaper'|'revenue-radar'|'founder-inbox';
 type LoopUsefulnessAudit = { score:number; decision:'keep'|'revise'|'merge'|'remove'; label:string; strengths:string[]; gaps:string[]; dimensions:Record<string,number> };
 type LoopFactoryDraft = { pattern:Exclude<LoopPatternId,'auto'>; def:LoopState['def']; readinessScore:number; readiness:'ready'|'needs-review'|'unsafe'; warnings:string[]; evidenceRequired:string[]; audit:LoopUsefulnessAudit };
-type AuditedLoopState = LoopState & { audit?:LoopUsefulnessAudit };
+type LoopReceiptSummary = { count:number; latestStatus:string|null; latestAt:string|null; latestEvidence:string|null };
+type AuditedLoopState = LoopState & { audit?:LoopUsefulnessAudit; receipts?:LoopReceiptSummary };
 type Tab = 'NOW'|'INBOX'|'WORK'|'INTAKE'|'SYSTEM';
 type BridgeState = { checked:boolean; available:boolean; url:string; detail:string };
 
@@ -370,8 +371,10 @@ function LoopCard({loop,event,open}:{loop:AuditedLoopState;event:(id:string,type
     </dl>
     {loop.lastEvent&&<p className="muted lastEvent">last: {loop.lastEvent.type}{loop.lastEvent.summary?` — ${loop.lastEvent.summary}`:''}{loop.stopReason?` (${loop.stopReason})`:''}</p>}
     {loop.audit?.gaps?.length ? <p className="muted lastEvent">doctor: {loop.audit.gaps[0]}</p> : null}
+    {loop.receipts&&<p className="muted lastEvent">receipts: {loop.receipts.count}{loop.receipts.latestStatus?` · ${loop.receipts.latestStatus}`:''}{loop.receipts.latestEvidence?` — ${loop.receipts.latestEvidence}`:''}</p>}
     <div className="chips">
       <button className="primary" style={{width:'auto'}} onClick={()=>{const p=buildLoopPrompt(d); navigator.clipboard.writeText(p); open({title:`Loop prompt · ${d.name}`,body:<CopyBlock text={p}/>});}}>COPY LOOP PROMPT</button>
+      <button className="ghost" onClick={async()=>{const r=await mazosFetch(`/api/mazos/loop-receipts?loopId=${encodeURIComponent(d.id)}&limit=12`).then(r=>r.json()); open({title:`Loop receipts · ${d.name}`,body:<CopyBlock text={JSON.stringify(r,null,2)}/>});}}>Receipts</button>
       {!active&&<button className="ghost" onClick={()=>event(d.id,'start')}>Start</button>}
       {active&&<>
         <button className="ghost" disabled={loop.iteration>=d.maxIterations} title={loop.iteration>=d.maxIterations?'Max iterations reached — stop or complete':''} onClick={()=>{event(d.id,'iteration',{summary:note}); setNote('');}}>Log iteration</button>
