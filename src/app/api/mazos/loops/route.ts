@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server';
 import { LOOP_RUNS, LOOPS_STATE, DECISIONS_LOG } from '@/lib/mazos/paths';
 import { foldLoopState, type LoopEvent, type LoopEventType, type LoopStopReason } from '@/lib/mazos/loopEngine';
 import { allLoopTemplates, auditLoopUsefulness } from '@/lib/mazos/loopFactory';
+import { appendLoopReceipt, receiptSummary } from '@/lib/mazos/loopReceipts';
 
 function readEvents(): LoopEvent[] {
   if (!fs.existsSync(LOOP_RUNS)) return [];
@@ -13,7 +14,7 @@ function readEvents(): LoopEvent[] {
 export async function GET() {
   const templates = allLoopTemplates();
   return NextResponse.json({
-    loops: foldLoopState(templates, readEvents()).map((loop) => ({ ...loop, audit: auditLoopUsefulness(loop.def) })),
+    loops: foldLoopState(templates, readEvents()).map((loop) => ({ ...loop, audit: auditLoopUsefulness(loop.def), receipts: receiptSummary(loop.def.id) })),
   });
 }
 
@@ -35,6 +36,7 @@ export async function POST(req: Request) {
 
   fs.mkdirSync(path.dirname(LOOP_RUNS), { recursive: true });
   fs.appendFileSync(LOOP_RUNS, `${JSON.stringify(event)}\n`, 'utf8');
+  const receipt = appendLoopReceipt(def, event);
 
   // A gate is a human question: file it in the Decision Inbox so nothing waits silently.
   if (type === 'gate') {
@@ -47,7 +49,7 @@ export async function POST(req: Request) {
     fs.appendFileSync(DECISIONS_LOG, `${JSON.stringify(decision)}\n`, 'utf8');
   }
 
-  const loops = foldLoopState(templates, readEvents()).map((loop) => ({ ...loop, audit: auditLoopUsefulness(loop.def) }));
+  const loops = foldLoopState(templates, readEvents()).map((loop) => ({ ...loop, audit: auditLoopUsefulness(loop.def), receipts: receiptSummary(loop.def.id) }));
   fs.writeFileSync(LOOPS_STATE, JSON.stringify({ updatedAt: at, loops: loops.map(l => ({ id: l.def.id, status: l.status, iteration: l.iteration, startedAt: l.startedAt, stopReason: l.stopReason })) }, null, 2));
-  return NextResponse.json({ ok: true, loops });
+  return NextResponse.json({ ok: true, loops, receipt });
 }
