@@ -22,6 +22,7 @@ export type ResearchConsole = {
   generatedAt: string;
   directory: string;
   reports: ResearchReport[];
+  roadmap: ResearchRoadmap;
   metrics: {
     totalReports: number;
     deepResearchReports: number;
@@ -31,6 +32,29 @@ export type ResearchConsole = {
   };
   nextBuildQueue: string[];
   automationPrompt: string;
+};
+
+export type ResearchPrompt = {
+  id: string;
+  title: string;
+  goal: string;
+  sources: string[];
+  deliverable: string;
+  whyItMatters: string;
+};
+
+export type RoadmapItem = {
+  id: string;
+  title: string;
+  competitorPattern: string;
+  repoNextStep: string;
+  priority: 'now' | 'next' | 'later';
+};
+
+export type ResearchRoadmap = {
+  prompts: ResearchPrompt[];
+  nextSteps: RoadmapItem[];
+  implementationFocus: string;
 };
 
 const REPORT_PREFIXES = ['DEEP_RESEARCH_', 'MULTI_DEEP_RESEARCH_', 'LOOP_FACTORY_PRODUCT_LINE_RESEARCH_'];
@@ -115,6 +139,74 @@ function fallbackSummary(markdown: string) {
     || 'Saved MAZos research report.';
 }
 
+export const RESEARCH_ROADMAP: ResearchRoadmap = {
+  implementationFocus: 'Build Competitor Radar next: live competitor snapshots, feature matrix, copy/adapt/ignore recommendations, and Draft Loop Pack handoff.',
+  prompts: [
+    {
+      id: 'workflow-builder-emulation',
+      title: 'Workflow Builder Emulation',
+      goal: 'Identify the highest-leverage workflow automation features MAZos should emulate without becoming a generic node canvas.',
+      sources: ['n8n', 'Dify', 'Activepieces', 'GitHub Actions', 'Make', 'Zapier', 'Gumloop'],
+      deliverable: 'A MAZos workflow feature matrix covering triggers, execution history, artifacts, credentials/source policy, retries, subflows, and visual density.',
+      whyItMatters: 'This decides how MAZos should package loops as repeatable workflows instead of loose prompts.',
+    },
+    {
+      id: 'agent-runtime-durability',
+      title: 'Agent Runtime Durability',
+      goal: 'Research how production agent systems preserve state, human interrupts, traces, and resumable execution.',
+      sources: ['LangGraph', 'Temporal', 'OpenAI Agents SDK', 'AutoGen', 'CrewAI', 'Mastra', 'OSpec'],
+      deliverable: 'A LoopSpec v2 design with state, receipts, interrupt states, verifier roles, budgets, and recovery semantics.',
+      whyItMatters: 'This keeps MAZos safe and debuggable as loops become more capable.',
+    },
+    {
+      id: 'coding-agent-command-ux',
+      title: 'Coding Agent Command UX',
+      goal: 'Map the UX patterns from modern coding agents that MAZos should emulate as a cockpit layer.',
+      sources: ['OpenHands', 'opencode', 'Codex', 'Cline', 'Continue', 'Aider', 'Cursor', 'Devin', 'Replit Agent'],
+      deliverable: 'A command UX brief for task launch, branch/worktree planning, diff review, verification output, and handoff receipts.',
+      whyItMatters: 'MAZos should make agents easier to steer and verify, not replace the IDE or terminal.',
+    },
+    {
+      id: 'product-cleanup-revenue-loops',
+      title: 'Product Cleanup And Revenue Loops',
+      goal: 'Research how MAZos can continuously remove useless surfaces and push revenue-facing work forward across projects.',
+      sources: ['MAZos Loop Doctor', 'JobFilter competitors', 'pricing pages', 'Stripe/onboarding docs', 'growth dashboards', 'support inbox patterns'],
+      deliverable: 'A loop pack roadmap for Useless Feature Reaper, Revenue Radar, Founder Inbox, and Competitor Intelligence with scoring rules.',
+      whyItMatters: 'This prevents dashboard bloat and keeps MAZos tied to shipping, lead quality, and money outcomes.',
+    },
+  ],
+  nextSteps: [
+    {
+      id: 'github-pulse-api',
+      title: 'Competitor Radar Snapshot API',
+      competitorPattern: 'GitHub Actions/n8n execution panels: current repo events before action.',
+      repoNextStep: 'Add a local API that returns competitor repo/docs signals, product patterns, MAZos gaps, suggested loop pack, and evidence links.',
+      priority: 'now',
+    },
+    {
+      id: 'loop-simulator',
+      title: 'Loop Simulator',
+      competitorPattern: 'Workflow dry runs and agent plan previews.',
+      repoNextStep: 'Preview sources, commands, touched files, risk, gates, receipt shape, and expected cost before running a loop.',
+      priority: 'next',
+    },
+    {
+      id: 'receipt-viewer',
+      title: 'Receipt Viewer',
+      competitorPattern: 'Tracing and run artifacts from n8n, OpenAI Agents, OpenHands, and Temporal histories.',
+      repoNextStep: 'Replace raw JSON receipt modal with a focused receipt timeline panel.',
+      priority: 'next',
+    },
+    {
+      id: 'connector-policy',
+      title: 'Connector Policy Layer',
+      competitorPattern: 'Activepieces/n8n connector catalogs with permissions.',
+      repoNextStep: 'Define allowed connectors, source trust, auth boundaries, and read/write safety per loop pack.',
+      priority: 'later',
+    },
+  ],
+};
+
 export function readResearchConsole(): ResearchConsole {
   const reports = fs.existsSync(RESEARCH_DIR)
     ? fs.readdirSync(RESEARCH_DIR)
@@ -177,6 +269,7 @@ export function readResearchConsole(): ResearchConsole {
     generatedAt: new Date().toISOString(),
     directory: RESEARCH_DIR,
     reports,
+    roadmap: RESEARCH_ROADMAP,
     metrics: {
       totalReports: reports.length,
       deepResearchReports: reports.filter((report) => report.file.startsWith('DEEP_RESEARCH_')).length,

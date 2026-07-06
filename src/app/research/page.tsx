@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import type React from 'react';
-import { Activity, Archive, ArrowRight, ClipboardList, FileText, GitBranch, Radar, SearchCheck, ShieldCheck, Sparkles } from 'lucide-react';
-import { readResearchConsole, type ResearchReport } from '@/lib/mazos/research';
+import { Activity, Archive, ArrowRight, ClipboardList, FileText, GitBranch, Radar, SearchCheck, ShieldCheck, Sparkles, Target } from 'lucide-react';
+import { buildCompetitorRadar } from '@/lib/mazos/competitorRadar';
+import { readResearchConsole, type ResearchPrompt, type ResearchReport } from '@/lib/mazos/research';
 
 export const dynamic = 'force-dynamic';
 
@@ -56,8 +57,26 @@ function ReportCard({ report }: { report: ResearchReport }) {
   </article>;
 }
 
-export default function ResearchPage() {
+function PromptCard({ prompt }: { prompt: ResearchPrompt }) {
+  return <article className="researchPrompt">
+    <div className="researchCardTop"><span className="researchTrack">{prompt.id.replace(/-/g, ' ')}</span><Target size={15} /></div>
+    <h2>{prompt.title}</h2>
+    <p>{prompt.goal}</p>
+    <div className="researchActions">
+      <b>Sources</b>
+      <div className="researchSourceChips">{prompt.sources.map((source) => <span key={source}>{source}</span>)}</div>
+    </div>
+    <div className="researchActions">
+      <b>Deliverable</b>
+      <p>{prompt.deliverable}</p>
+    </div>
+    <small>{prompt.whyItMatters}</small>
+  </article>;
+}
+
+export default async function ResearchPage() {
   const research = readResearchConsole();
+  const radar = await buildCompetitorRadar();
   const lead = research.reports[0];
   const audit = research.reports.find((report) => report.usefulness === 'audit');
 
@@ -90,6 +109,50 @@ export default function ResearchPage() {
         <Metric label="Unique sources" value={research.metrics.sourceCount} detail="URLs extracted from reports" />
         <Metric label="Build-now docs" value={research.metrics.buildNowCount} detail="Reports with direct implementation value" />
         <Metric label="Latest report" value={lead ? lead.track : 'none'} detail={lead ? lead.file : 'No reports found'} />
+      </div>
+    </section>
+
+    <section className="researchReports">
+      <div className="researchPanelHead"><h2>Competitor Radar</h2><span>{radar.sourceRule}</span></div>
+      <div className="radarMatrix">
+        {radar.snapshots.slice(0, 8).map((snapshot) => <article key={snapshot.competitor.id} className="radarCard">
+          <div className="researchCardTop">
+            <span className="researchTrack">{snapshot.competitor.category}</span>
+            <span className={`researchUse ${snapshot.recommendation}`}>{snapshot.recommendation}</span>
+          </div>
+          <h2>{snapshot.competitor.name}</h2>
+          <p>{snapshot.mazosGap}</p>
+          {snapshot.github && <div className="researchMeta">
+            <span><GitBranch size={13} /> {snapshot.github.fullName}</span>
+            <span><Sparkles size={13} /> {snapshot.github.stars.toLocaleString()} stars</span>
+            <span><Activity size={13} /> pushed {snapshot.github.pushedAt ? new Date(snapshot.github.pushedAt).toLocaleDateString() : 'unknown'}</span>
+          </div>}
+          <div className="researchSourceChips">{snapshot.patterns.slice(0, 4).map((pattern) => <span key={pattern}>{pattern}</span>)}</div>
+          <small>Loop pack: {snapshot.competitor.suggestedLoopPack}</small>
+        </article>)}
+      </div>
+      <div className="researchMatrixList">
+        {radar.matrix.map((row) => <div key={row.pattern}><b>{row.pattern}</b><span>{row.competitors.join(', ')}</span><p>{row.mazosMove}</p></div>)}
+      </div>
+    </section>
+
+    <section className="researchReports">
+      <div className="researchPanelHead"><h2>Four Big Research Prompts</h2><span>agent-ready</span></div>
+      <div className="researchPromptGrid">{research.roadmap.prompts.map((prompt) => <PromptCard key={prompt.id} prompt={prompt} />)}</div>
+    </section>
+
+    <section className="researchGrid">
+      <div className="researchQueue">
+        <div className="researchPanelHead"><h2>Competitor Emulation Roadmap</h2><span>{research.roadmap.implementationFocus}</span></div>
+        <ol className="researchQueueList">
+          {research.roadmap.nextSteps.map((item, index) =>
+            <li key={item.id}><span>{String(index + 1).padStart(2, '0')}</span><p><b>{item.title}</b><br />{item.repoNextStep}<br /><small>{item.competitorPattern} · {item.priority}</small></p><ArrowRight size={15} /></li>
+          )}
+        </ol>
+      </div>
+      <div className="researchAutomation">
+        <div className="researchPanelHead"><h2>Next Implementation Focus</h2><span>from roadmap</span></div>
+        <pre>{research.roadmap.implementationFocus}</pre>
       </div>
     </section>
 
