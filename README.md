@@ -121,6 +121,8 @@ API routes:
 - `POST /api/mazos/task-gate`
 - `POST /api/mazos/mission-plan`
 
+Mission plans also include Source Receipts from `GET /api/mazos/context-map`. The generated Hermes prompt now tells agents which repo/vault/OpenWiki/tool-router sources to read first, how confident each receipt is, and when to stop if evidence contradicts the mission.
+
 Data files:
 
 - `data/mazos/task-gates/latest-task-gate.json`

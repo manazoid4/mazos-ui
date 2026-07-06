@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { DATA_DIR, today } from './paths';
 import { scoreTask, type TaskGateInput } from './taskScoring';
+import { buildContextMap, type SourceReceipt } from './sourceReceipts';
 
 export const MISSION_PLAN_DIR = path.join(DATA_DIR, 'mission-plans');
 
@@ -16,6 +17,8 @@ export type MissionPlan = {
   forbiddenActions: string[];
   validationCommands: string[];
   hermesPrompt: string;
+  sourceReceipts: SourceReceipt[];
+  contextPrompt: string;
   fallbackPlan: string[];
   handoffTemplate: string;
   score: number;
@@ -37,6 +40,7 @@ export function createMissionPlan(input: TaskGateInput): MissionPlan {
   const likelyFiles = splitLines(input.expectedFiles).length
     ? splitLines(input.expectedFiles)
     : inferLikelyFiles(input.task || '', repo.label);
+  const contextMap = buildContextMap(repo.label || input.repoLabel || 'MAZos');
   const id = `mission-${Date.now()}`;
   const savedTo = path.join(MISSION_PLAN_DIR, `${today()}-${safeName(repo.label)}-${id}.md`);
   const plan: MissionPlan = {
@@ -49,7 +53,9 @@ export function createMissionPlan(input: TaskGateInput): MissionPlan {
     successCriteria: gate.successChecklist,
     forbiddenActions: gate.forbiddenActions,
     validationCommands: gate.validationCommands,
-    hermesPrompt: gate.suggestedPrompt,
+    hermesPrompt: withContextReceipts(gate.suggestedPrompt, contextMap),
+    sourceReceipts: contextMap.receipts,
+    contextPrompt: contextMap.copyPrompt,
     fallbackPlan: [
       'Stop if repo state differs from the Task Gate result.',
       'If validation fails, capture exact error output and generate a smaller fix prompt.',
@@ -86,6 +92,14 @@ function saveMissionPlan(plan: MissionPlan) {
     '',
     '## Validation Commands',
     plan.validationCommands.map((item) => `- ${item}`).join('\n'),
+    '',
+    '## Source Receipts',
+    plan.sourceReceipts.map((item) => `- [${item.kind}] ${item.title} — ${item.pathOrUrl} (${item.confidence}, ${item.freshness})`).join('\n'),
+    '',
+    '## Context Prompt',
+    '```text',
+    plan.contextPrompt,
+    '```',
     '',
     '## Hermes Prompt',
     '```text',
@@ -146,6 +160,23 @@ function buildHandoffTemplate(input: TaskGateInput, gate: ReturnType<typeof scor
     '',
     '## Resume Prompt',
     gate.suggestedPrompt,
+  ].join('\n');
+}
+
+function withContextReceipts(prompt: string, contextMap: ReturnType<typeof buildContextMap>) {
+  const receipts = contextMap.receipts.filter((item) => item.readFirst).slice(0, 8);
+  return [
+    prompt,
+    '',
+    'SOURCE RECEIPTS - READ BEFORE ACTING:',
+    ...(receipts.length
+      ? receipts.map((item) => `- [${item.kind}] ${item.title}: ${item.pathOrUrl} (${item.confidence}; ${item.freshness})`)
+      : ['- No source receipts found; inspect repo and vault context before acting.']),
+    '',
+    'CONTEXT MAP RULES:',
+    '- Quote the receipt you relied on in your final report.',
+    '- If a receipt contradicts the task, stop and open/return a human gate.',
+    '- Treat sensitive local/vault paths as private evidence; do not paste private content externally.',
   ].join('\n');
 }
 
