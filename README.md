@@ -151,6 +151,16 @@ Ranking is revenue-weighted and **explainable**: every item carries a `scoreBrea
 
 Safety defaults remain intact: no shell execution, no LLM calls, no external crawling, no cron, no database writes, and no autonomous agent starts. Hosted Vercel degrades through the same local bridge pattern as other MAZos APIs.
 
+## Command Brief, Context Map, and Runtime Safety
+
+MAZos exposes the next operating layer as read-only, agent-usable APIs:
+
+- `GET /api/mazos/morning-brief?project=MAZos` returns a server-side command brief with headline, ship-next, needs-you list, avoid-today guidance, source evidence, Markdown, and the safest next prompt.
+- `GET /api/mazos/context-map?project=JobFilter` returns source receipts across repo/vault/OpenWiki/tool-router/verify commands so agents know what to read first and what evidence is sensitive.
+- `GET /api/mazos/agent-runtimes?task=...` returns the local runtime registry for Hermes, Codex, Claude Code, OpenCode, and browser agents, with safety ceilings, allowed modes, forbidden actions, validation commands, and a recommended runtime.
+
+The main cockpit shows the server brief and Context Map in `NOW`, and the Agent Runtime Safety Console in `SYSTEM`. These panels do not launch agents or shell commands; they generate operating context and safety guidance for Task Gate and manual agent handoff.
+
 ## System Internals
 
 `GET /api/mazos/system` reports the local machine: CPU usage/cores, RAM used/total, GPU VRAM used/total + utilisation + temperature (read-only `nvidia-smi` query, absent on hosted), disk free, and uptime. The cockpit shows it as a compact strip under the header — local mode only; hosted without the bridge hides it. When RAM or VRAM crosses 92% the feed surfaces a memory-pressure attention item so agent runs do not fail for the wrong reason.
