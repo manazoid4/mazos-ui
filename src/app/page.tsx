@@ -32,6 +32,8 @@ type ContextMap = { generatedAt:string; project:string; repoPath:string|null; bl
 type ServerBrief = { generatedAt:string; headline:string; shipNext:string; needsYou:string[]; avoidToday:string; safestNextPrompt:string; evidence:string[]; markdown:string; degraded:boolean; warnings:string[] };
 type AgentRuntime = { id:string; name:string; kind:string; status:string; pathHint:string; safetyCeiling:SafetyLevel; allowedModes:string[]; preferredTasks:string[]; forbidden:string[]; validationCommands:string[]; bridgeAware:boolean; lastTraceHint:string };
 type AgentRuntimeRegistry = { generatedAt:string; safety:{safeMode:boolean; allowShell:boolean; allowPush:boolean; allowDestructive:boolean}; recommendedRuntimeId:string; recommendationReason:string; runtimes:AgentRuntime[] };
+type LoopPatternId = 'auto'|'research-intelligence'|'daily-triage'|'pr-babysitter'|'build-doctor'|'intake-drainer'|'ship-log';
+type LoopFactoryDraft = { pattern:Exclude<LoopPatternId,'auto'>; def:LoopState['def']; readinessScore:number; readiness:'ready'|'needs-review'|'unsafe'; warnings:string[]; evidenceRequired:string[] };
 type Tab = 'NOW'|'INBOX'|'WORK'|'INTAKE'|'SYSTEM';
 type BridgeState = { checked:boolean; available:boolean; url:string; detail:string };
 
@@ -75,6 +77,8 @@ export default function Page() {
   const [routerTask,setRouterTask]=useState(''), [routerRecs,setRouterRecs]=useState<ToolRec[]>([]), [routerBusy,setRouterBusy]=useState(false);
   const [tab,setTab]=useState<Tab>('NOW');
   const [loops,setLoops]=useState<LoopState[]>([]); const [decisions,setDecisions]=useState<DecisionItem[]>([]);
+  const [loopFactory,setLoopFactory]=useState({ goal:'Research JobFilter competitors weekly and turn what works into product moves.', project:'JobFilter', pattern:'auto' as LoopPatternId, sources:'' });
+  const [loopDraft,setLoopDraft]=useState<LoopFactoryDraft|null>(null);
   const [ship,setShip]=useState<ShipLogData|null>(null);
   const [spine,setSpine]=useState<SpineData|null>(null);
   const [feed,setFeed]=useState<FeedData|null>(null);
@@ -96,6 +100,8 @@ export default function Page() {
   async function loadRuntimes(task=''){ try{ const qs=task?`?task=${encodeURIComponent(task)}`:''; const r=await mazosFetch(`/api/mazos/agent-runtimes${qs}`).then(r=>r.json()); if(!r.error) setRuntimeRegistry(r); }catch{ setRuntimeRegistry(null); } }
   async function setFeedState(id:string,state:FeedUserState){ setFeed(f=>f?{...f,items:f.items.map(i=>i.id===id?{...i,userState:state}:i)}:f); await mazosFetch('/api/mazos/feed',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,state})}).catch(()=>undefined); }
   async function loopEvent(loopId:string, type:string, extra:Record<string,string>={}){ const r=await mazosFetch('/api/mazos/loops',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({loopId,type,...extra})}).then(r=>r.json()); if(r.loops) setLoops(r.loops); if(type==='gate') loadDecisions(); }
+  async function draftLoop(){ setBusy('loop-factory-draft'); const r=await mazosFetch('/api/mazos/loop-factory',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...loopFactory,action:'draft'})}).then(r=>r.json()); setLoopDraft(r.draft||null); setBusy(''); }
+  async function saveLoop(){ setBusy('loop-factory-save'); const r=await mazosFetch('/api/mazos/loop-factory',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...loopFactory,action:'save'})}).then(r=>r.json()); setLoopDraft(r.draft||null); setBusy(''); if(r.ok){ await loadLoops(); setModal({title:'Loop template saved',body:<p className="muted">{r.draft?.def?.name || 'Custom loop'} saved to the Loop Engineering Deck.</p>}); } else { setModal({title:'Loop template not saved',body:<div><p className="bad inline">{r.error || 'Save failed.'}</p>{r.draft&&<CopyBlock text={buildLoopPrompt(r.draft.def)}/>}</div>}); } }
   async function resolveDecision(id:string, status:string, resolution:string){ const r=await mazosFetch('/api/mazos/decisions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'resolve',id,status,resolution})}).then(r=>r.json()); if(r.decisions){ setDecisions(r.decisions); const item=(r.decisions as DecisionItem[]).find(d=>d.id===id); if(item) setModal({title:'Resolution prompt · paste to the waiting agent',body:<CopyBlock text={buildResolutionPrompt(item)}/>}); } }
   async function addDecision(question:string, context:string){ const r=await mazosFetch('/api/mazos/decisions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'open',source:'manual',question,context})}).then(r=>r.json()); if(r.decisions) setDecisions(r.decisions); }
   async function routeTool(){ if(!routerTask.trim())return; setRouterBusy(true); const [r]=await Promise.all([mazosFetch(`/api/mazos/tool-router?task=${encodeURIComponent(routerTask)}`).then(r=>r.json()), loadRuntimes(routerTask)]); setRouterRecs(r.recommendations||[]); setRouterBusy(false); }
@@ -129,6 +135,7 @@ export default function Page() {
       <Panel title="Project Command Cards" badge="commit · PR · dirty · blocker · next · evidence">
         <div className="repos">{statusDeck.map(s=><ProjectCard key={s.query} status={s} open={setModal} pack={loadContextPack} busy={busy}/>)}</div>
       </Panel>
+      <LoopFactoryPanel form={loopFactory} setForm={setLoopFactory} draft={loopDraft} busy={busy} draftLoop={draftLoop} saveLoop={saveLoop} open={setModal}/>
       <Panel title="Loop Engineering Deck" badge="prompts out · evidence in · MAZos never executes"><div className="loopDeck">{loops.map(l=><LoopCard key={l.def.id} loop={l} event={loopEvent} open={setModal}/>)}</div></Panel>
       <DecisionInbox decisions={decisions} resolve={resolveDecision} add={addDecision} open={setModal}/>
       <ContextMapPanel contextMap={contextMap} open={setModal} reload={()=>loadContextMap('MAZos')}/>
@@ -261,6 +268,58 @@ function CommandPalette({actions,loops,projects,close,exec}:{actions:Action[];lo
     <input ref={inputRef} className="input" placeholder="Type a command, loop, project, or tab… (Esc closes)" value={q} onChange={e=>setQ(e.target.value)} onKeyDown={key}/>
     <div className="paletteList">{items.map((it,i)=><button key={it.key} className={`paletteRow ${i===sel?'sel':''}`} onMouseEnter={()=>setSel(i)} onClick={it.go}><span className="paletteKind">{it.kind}</span><b>{it.label}</b><small>{it.hint}</small>{it.safety&&<SafetyBadge level={it.safety}/>}</button>)}{items.length===0&&<p className="muted">No match.</p>}</div>
   </section></div>;
+}
+
+function LoopFactoryPanel({form,setForm,draft,busy,draftLoop,saveLoop,open}:{form:{goal:string;project:string;pattern:LoopPatternId;sources:string};setForm:(v:{goal:string;project:string;pattern:LoopPatternId;sources:string})=>void;draft:LoopFactoryDraft|null;busy:string;draftLoop:()=>void;saveLoop:()=>void;open:(m:{title:string;body:React.ReactNode})=>void}){
+  const update=<K extends keyof typeof form>(key:K,value:(typeof form)[K])=>setForm({...form,[key]:value});
+  const canSave=!!draft&&draft.readiness!=='unsafe';
+  return <Panel title="Loop Factory" badge="plain goal → reusable loop template · scored before save">
+    <div className="split">
+      <div>
+        <label className="fieldLabel">Goal</label>
+        <textarea className="input" rows={4} value={form.goal} onChange={e=>update('goal',e.target.value)} placeholder="Research competitors weekly and turn what works into product moves."/>
+        <div className="cols">
+          <input className="input" value={form.project} onChange={e=>update('project',e.target.value)} placeholder="Project, e.g. JobFilter"/>
+          <select className="input" value={form.pattern} onChange={e=>update('pattern',e.target.value as LoopPatternId)}>
+            {[
+              ['auto','Auto-pick pattern'],
+              ['research-intelligence','Research intelligence'],
+              ['daily-triage','Daily triage'],
+              ['pr-babysitter','PR babysitter'],
+              ['build-doctor','Build doctor'],
+              ['intake-drainer','Intake drainer'],
+              ['ship-log','Ship log'],
+            ].map(([id,label])=><option key={id} value={id}>{label}</option>)}
+          </select>
+        </div>
+        <label className="fieldLabel">Sources</label>
+        <textarea className="input" rows={3} value={form.sources} onChange={e=>update('sources',e.target.value)} placeholder="One public URL, source path, or intake note per line."/>
+        <div className="chips">
+          <button className="primary" disabled={busy==='loop-factory-draft'||!form.goal.trim()} onClick={draftLoop}>{busy==='loop-factory-draft'?'DRAFTING…':'Draft Loop'}</button>
+          <button className="ghost" disabled={!canSave||busy==='loop-factory-save'} onClick={saveLoop}>{busy==='loop-factory-save'?'SAVING…':'Save Template'}</button>
+          {draft&&<button className="ghost" onClick={()=>{const prompt=buildLoopPrompt(draft.def); navigator.clipboard.writeText(prompt); open({title:`Loop prompt · ${draft.def.name}`,body:<CopyBlock text={prompt}/>});}}>Copy Runner Prompt</button>}
+        </div>
+      </div>
+      <div>
+        {!draft?<p className="muted">Draft a loop to see its readiness score, gates, evidence requirements, and reusable runner prompt before it enters the deck.</p>:<article className={`repo loopCard ${draft.readiness}`}>
+          <div className="repoTop"><h3>{draft.def.name}</h3><span className={draft.readiness==='ready'?'ok':draft.readiness==='unsafe'?'bad':'tag'}>{draft.readinessScore} · {draft.readiness}</span></div>
+          <small>{draft.def.goal}</small>
+          <dl>
+            <dt>pattern</dt><dd>{draft.pattern}</dd>
+            <dt>agent</dt><dd>{draft.def.agent}</dd>
+            <dt>safety</dt><dd><SafetyBadge level={draft.def.safetyCeiling}/></dd>
+            <dt>stops</dt><dd>max {draft.def.maxIterations} · {draft.def.budgetMinutes}m · no-progress {draft.def.noProgressStop}</dd>
+          </dl>
+          <p><b>Success:</b> {draft.def.successCondition}</p>
+          {draft.warnings.length>0&&<><p className="detailLabel">WARNINGS</p><ul className="summaryList">{draft.warnings.map(w=><li className="bad inline" key={w}>{w}</li>)}</ul></>}
+          <p className="detailLabel">EVIDENCE REQUIRED</p>
+          <ul className="summaryList">{draft.evidenceRequired.map(e=><li key={e}>{e}</li>)}</ul>
+          <p className="detailLabel">HUMAN GATES</p>
+          <ul className="summaryList">{draft.def.humanGates.map(g=><li key={g}>{g}</li>)}</ul>
+        </article>}
+      </div>
+    </div>
+  </Panel>;
 }
 
 function LoopCard({loop,event,open}:{loop:LoopState;event:(id:string,type:string,extra?:Record<string,string>)=>void;open:(m:{title:string;body:React.ReactNode})=>void}){

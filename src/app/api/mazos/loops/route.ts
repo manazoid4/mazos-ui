@@ -2,7 +2,8 @@ import fs from 'fs';
 import path from 'path';
 import { NextResponse } from 'next/server';
 import { LOOP_RUNS, LOOPS_STATE, DECISIONS_LOG } from '@/lib/mazos/paths';
-import { LOOP_TEMPLATES, foldLoopState, type LoopEvent, type LoopEventType, type LoopStopReason } from '@/lib/mazos/loopEngine';
+import { foldLoopState, type LoopEvent, type LoopEventType, type LoopStopReason } from '@/lib/mazos/loopEngine';
+import { allLoopTemplates } from '@/lib/mazos/loopFactory';
 
 function readEvents(): LoopEvent[] {
   if (!fs.existsSync(LOOP_RUNS)) return [];
@@ -10,7 +11,7 @@ function readEvents(): LoopEvent[] {
 }
 
 export async function GET() {
-  return NextResponse.json({ loops: foldLoopState(LOOP_TEMPLATES, readEvents()) });
+  return NextResponse.json({ loops: foldLoopState(allLoopTemplates(), readEvents()) });
 }
 
 const EVENT_TYPES: LoopEventType[] = ['start', 'iteration', 'complete', 'stop', 'gate'];
@@ -20,7 +21,8 @@ export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
   const loopId = String(body?.loopId || '');
   const type = body?.type as LoopEventType;
-  const def = LOOP_TEMPLATES.find(l => l.id === loopId);
+  const templates = allLoopTemplates();
+  const def = templates.find(l => l.id === loopId);
   if (!def || !EVENT_TYPES.includes(type)) return NextResponse.json({ error: 'Unknown loop or event type' }, { status: 400 });
 
   const at = new Date().toISOString();
@@ -42,7 +44,7 @@ export async function POST(req: Request) {
     fs.appendFileSync(DECISIONS_LOG, `${JSON.stringify(decision)}\n`, 'utf8');
   }
 
-  const loops = foldLoopState(LOOP_TEMPLATES, readEvents());
+  const loops = foldLoopState(templates, readEvents());
   fs.writeFileSync(LOOPS_STATE, JSON.stringify({ updatedAt: at, loops: loops.map(l => ({ id: l.def.id, status: l.status, iteration: l.iteration, startedAt: l.startedAt, stopReason: l.stopReason })) }, null, 2));
   return NextResponse.json({ ok: true, loops });
 }
