@@ -36,7 +36,7 @@ export async function buildMorningBrief(project = 'MAZos'): Promise<MorningBrief
 
   const brief = {
     generatedAt: new Date().toISOString(),
-    headline: ship ? ship.title : top ? top.title : 'No feed signals found.',
+    headline: ship ? ship.title : 'No feed signals found.',
     shipNext: ship ? `${ship.product || 'MAZos'}: ${ship.nextAction}` : context.nextBestAction,
     needsYou,
     avoidToday: ignore ? `Ignore unless contradicted: ${ignore.title}` : 'Do not start broad new work until the current spine item is handled.',
