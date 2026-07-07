@@ -2,6 +2,7 @@ import Link from 'next/link';
 import type React from 'react';
 import { Activity, Archive, ArrowRight, ClipboardList, FileText, GitBranch, Radar, SearchCheck, ShieldCheck, Sparkles, Target } from 'lucide-react';
 import { buildCompetitorRadar } from '@/lib/mazos/competitorRadar';
+import { buildMassCompetitorCatalog, type MassCompetitor } from '@/lib/mazos/massCompetitors';
 import { readResearchConsole, type ResearchPrompt, type ResearchReport } from '@/lib/mazos/research';
 
 export const dynamic = 'force-dynamic';
@@ -74,9 +75,34 @@ function PromptCard({ prompt }: { prompt: ResearchPrompt }) {
   </article>;
 }
 
+const priorityLabel: Record<MassCompetitor['priority'], string> = {
+  'copy-now': 'copy now',
+  study: 'study',
+  watch: 'watch',
+};
+
+function MassCompetitorCard({ competitor }: { competitor: MassCompetitor }) {
+  return <article className="massCompetitorCard">
+    <div className="researchCardTop">
+      <span className="researchTrack">{competitor.loopPack}</span>
+      <span className={`researchUse massPriority ${competitor.priority}`}>{priorityLabel[competitor.priority]}</span>
+    </div>
+    <h3><a href={competitor.url}>{competitor.name}</a></h3>
+    <p>{competitor.plainEnglish}</p>
+    <dl>
+      <div><dt>Why care</dt><dd>{competitor.whyItMatters}</dd></div>
+      <div><dt>Copy</dt><dd>{competitor.copy}</dd></div>
+      <div><dt>Avoid</dt><dd>{competitor.avoid}</dd></div>
+      <div><dt>MAZos move</dt><dd>{competitor.mazosMove}</dd></div>
+    </dl>
+    {competitor.repo && <a className="massRepoLink" href={`https://github.com/${competitor.repo}`}><GitBranch size={13} /> {competitor.repo}</a>}
+  </article>;
+}
+
 export default async function ResearchPage() {
   const research = readResearchConsole();
   const radar = await buildCompetitorRadar();
+  const massCatalog = buildMassCompetitorCatalog();
   const lead = research.reports[0];
   const audit = research.reports.find((report) => report.usefulness === 'audit');
 
@@ -101,6 +127,7 @@ export default async function ResearchPage() {
         <p>Every research pass points to the same product move: MAZos needs a usefulness gate for loops, panels, and agent handoffs. The page below keeps that research visible and script-readable.</p>
         <div className="researchHeroActions">
           <Link className="researchPrimary" href="/api/mazos/research"><ClipboardList size={16} /> API JSON</Link>
+          <Link className="researchGhost" href="/api/mazos/remote"><Radar size={16} /> Remote Snapshot</Link>
           <a className="researchGhost" href="#queue"><GitBranch size={16} /> Build queue</a>
         </div>
       </div>
@@ -112,7 +139,7 @@ export default async function ResearchPage() {
       </div>
     </section>
 
-    <section className="researchReports">
+    {radar.snapshots.length > 0 && <section className="researchReports">
       <div className="researchPanelHead"><h2>Competitor Radar</h2><span>{radar.sourceRule}</span></div>
       <div className="radarMatrix">
         {radar.snapshots.slice(0, 8).map((snapshot) => <article key={snapshot.competitor.id} className="radarCard">
@@ -134,6 +161,20 @@ export default async function ResearchPage() {
       <div className="researchMatrixList">
         {radar.matrix.map((row) => <div key={row.pattern}><b>{row.pattern}</b><span>{row.competitors.join(', ')}</span><p>{row.mazosMove}</p></div>)}
       </div>
+    </section>}
+
+    <section className="researchReports massCompetitorSection">
+      <div className="researchPanelHead"><h2>Mass Competitor List</h2><span>{massCatalog.total} tools · {massCatalog.copyNow} copy now</span></div>
+      <p className="massCompetitorIntro">{massCatalog.sourceRule}</p>
+      <div className="massMoves">
+        {massCatalog.topMoves.map((move, index) => <div key={move}><b>{String(index + 1).padStart(2, '0')}</b><span>{move}</span></div>)}
+      </div>
+      {massCatalog.groups.map((group) => <details key={group.category} className="massCompetitorGroup" open={group.category === 'workflow-automation' || group.category === 'coding-agent'}>
+        <summary><span>{group.label}</span><small>{group.simpleRead}</small><b>{group.competitors.length}</b></summary>
+        <div className="massCompetitorGrid">
+          {group.competitors.map((competitor) => <MassCompetitorCard key={competitor.id} competitor={competitor} />)}
+        </div>
+      </details>)}
     </section>
 
     <section className="researchReports">
