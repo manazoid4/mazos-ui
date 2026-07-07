@@ -36,7 +36,9 @@ type SkillSpec = { id:string; name:string; sourceItemIds:string[]; sourceUrls:st
 type SkillSummary = { total:number; countsByStatus:Record<string,number>; topCandidates:SkillSpec[]; rejectedCount:number; archivedCount:number };
 type Pack = { id:string; name:string; type:string; audience:string; description:string; includedLoopIds:string[]; includedSkillIds:string[]; sourceItemIds:string[]; useCases:string[]; setupSteps:string[]; safetyNotes:string[]; proofReceipts:string[]; status:string; usefulnessScore:number; trustScore:number; installComplexity:string; createdAt:string; updatedAt:string };
 type PackSummary = { total:number; approved:Pack[]; drafts:Pack[]; testReady:Pack[]; topByUsefulness:Pack[]; countsByType:Record<string,number>; countsByAudience:Record<string,number> };
-type AiEngineData = { inbox:{items:AiSourceItem[];summary:AiInboxSummary}; skills:{skills:SkillSpec[];summary:SkillSummary}; packs:{packs:Pack[];summary:PackSummary} };
+type ReaperRecommendation = { id:string; target:string; targetId:string; title:string; action:string; severity:'low'|'medium'|'high'; reason:string; productImpact:string; safeToApply:boolean };
+type ClutterReaperReport = { generatedAt:string; productKernel:string[]; score:number; verdict:string; recommendations:ReaperRecommendation[]; quickWins:ReaperRecommendation[]; blockedActions:ReaperRecommendation[]; nextAction:string };
+type AiEngineData = { inbox:{items:AiSourceItem[];summary:AiInboxSummary}; skills:{skills:SkillSpec[];summary:SkillSummary}; packs:{packs:Pack[];summary:PackSummary}; reaper:ClutterReaperReport };
 type LoopPatternId = 'auto'|'research-intelligence'|'daily-triage'|'pr-babysitter'|'build-doctor'|'intake-drainer'|'ship-log'|'github-pulse'|'useless-feature-reaper'|'revenue-radar'|'founder-inbox';
 type LoopUsefulnessAudit = { score:number; decision:'keep'|'revise'|'merge'|'remove'; label:string; strengths:string[]; gaps:string[]; dimensions:Record<string,number> };
 type LoopFactoryDraft = { pattern:Exclude<LoopPatternId,'auto'>; def:LoopState['def']; readinessScore:number; readiness:'ready'|'needs-review'|'unsafe'; warnings:string[]; evidenceRequired:string[]; audit:LoopUsefulnessAudit };
@@ -105,7 +107,7 @@ export default function Page() {
   async function loadSpine(){ try{ const r=await mazosFetch('/api/mazos/shipping-spine').then(r=>r.json()); if(!r.error) setSpine(r); }catch{ /* spine loads lazily; NOW view shows loading state */ } }
   async function loadFeed(){ const r=await mazosFetch('/api/mazos/feed?limit=30').then(r=>r.json()); setFeed(r); }
   async function loadBrief(){ try{ const r=await mazosFetch('/api/mazos/morning-brief?project=MAZos').then(r=>r.json()); if(!r.error) setBrief(r); }catch{ setBrief(null); } }
-  async function loadAiEngine(){ try{ const [inbox,skills,packs]=await Promise.all([mazosFetch('/api/mazos/ai-source-inbox').then(r=>r.json()),mazosFetch('/api/mazos/skill-factory').then(r=>r.json()),mazosFetch('/api/mazos/loop-store').then(r=>r.json())]); setAiEngine({inbox,skills,packs}); }catch{ setAiEngine(null); } }
+  async function loadAiEngine(){ try{ const [inbox,skills,packs,reaper]=await Promise.all([mazosFetch('/api/mazos/ai-source-inbox').then(r=>r.json()),mazosFetch('/api/mazos/skill-factory').then(r=>r.json()),mazosFetch('/api/mazos/loop-store').then(r=>r.json()),mazosFetch('/api/mazos/clutter-reaper').then(r=>r.json())]); setAiEngine({inbox,skills,packs,reaper}); }catch{ setAiEngine(null); } }
   async function loadContextMap(project='MAZos'){ try{ const r=await mazosFetch(`/api/mazos/context-map?project=${encodeURIComponent(project)}`).then(r=>r.json()); if(!r.error) setContextMap(r); }catch{ setContextMap(null); } }
   async function loadRuntimes(task=''){ try{ const qs=task?`?task=${encodeURIComponent(task)}`:''; const r=await mazosFetch(`/api/mazos/agent-runtimes${qs}`).then(r=>r.json()); if(!r.error) setRuntimeRegistry(r); }catch{ setRuntimeRegistry(null); } }
   async function setFeedState(id:string,state:FeedUserState){ setFeed(f=>f?{...f,items:f.items.map(i=>i.id===id?{...i,userState:state}:i)}:f); await mazosFetch('/api/mazos/feed',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,state})}).catch(()=>undefined); }
@@ -118,6 +120,7 @@ export default function Page() {
   async function patchSkill(id:string,status:string){ const body=status==='approved'?{id,status,approvalNote:'Approved from MAZos cockpit after human review.',testEvidence:'Manual approval recorded; run checklist before installation.',sourceLinkOrExplanation:'Source is linked in the skill candidate.',riskAccepted:true}:{id,status}; const r=await mazosFetch('/api/mazos/skill-factory',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(r=>r.json()); await loadAiEngine(); if(r.error) setModal({title:'Skill update blocked',body:<CopyBlock text={JSON.stringify(r,null,2)}/>}); }
   async function patchPack(id:string,status:string){ await mazosFetch('/api/mazos/loop-store',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,status})}); await loadAiEngine(); }
   async function copyPackReadme(id:string){ const r=await mazosFetch(`/api/mazos/loop-store?readme=${encodeURIComponent(id)}`).then(r=>r.json()); setModal({title:`Pack README · ${r.pack?.name||id}`,body:<CopyBlock text={r.readme||JSON.stringify(r,null,2)}/>}); }
+  async function applyReaper(id:string){ const r=await mazosFetch('/api/mazos/clutter-reaper',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})}).then(r=>r.json()); await loadAiEngine(); await loadBrief(); setModal({title:r.ok?'Cleanup applied':'Cleanup blocked',body:<CopyBlock text={JSON.stringify(r,null,2)}/>}); }
   function addSourceToLoop(item:AiSourceItem){ const source=[item.url,item.summary,item.notes].filter(Boolean).join('\n'); const pattern=suggestUiLoopPattern(item); setLoopFactory({goal:`Turn this AI source into a reusable MAZos loop: ${item.title}`,project:'MAZos',pattern,sources:source}); patchAiSource(item.id,'loop_candidate'); setTab('WORK'); }
   async function resolveDecision(id:string, status:string, resolution:string){ const r=await mazosFetch('/api/mazos/decisions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'resolve',id,status,resolution})}).then(r=>r.json()); if(r.decisions){ setDecisions(r.decisions); const item=(r.decisions as DecisionItem[]).find(d=>d.id===id); if(item) setModal({title:'Resolution prompt · paste to the waiting agent',body:<CopyBlock text={buildResolutionPrompt(item)}/>}); } }
   async function addDecision(question:string, context:string){ const r=await mazosFetch('/api/mazos/decisions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'open',source:'manual',question,context})}).then(r=>r.json()); if(r.decisions) setDecisions(r.decisions); }
@@ -160,7 +163,7 @@ export default function Page() {
 
     {tab==='INTAKE'&&<section className="split intakeSplit">
       <Panel title="Source Intake" badge="writes queue"><textarea className="input big" rows={5} placeholder="Paste YouTube / Instagram / X / web URLs — one per line" value={ingest.urls} onChange={e=>setIngest({...ingest,urls:e.target.value})}/><div className="cols"><select className="input" value={ingest.sourceType} onChange={e=>setIngest({...ingest,sourceType:e.target.value})}>{['auto','youtube','instagram','x','pdf','webpage'].map(x=><option key={x}>{x}</option>)}</select><select className="input" value={ingest.target} onChange={e=>setIngest({...ingest,target:e.target.value})}>{['Recall','Obsidian','JobFilter research'].map(x=><option key={x}>{x}</option>)}</select></div><label className="drop"><input type="file" multiple accept=".pdf,.txt,.md" onChange={e=>setFiles(e.target.files)}/><span>{files?.length?`${files.length} file(s) staged`:'Drop PDFs / notes here'}</span></label><input className="input" placeholder="tags e.g. recall market youtube" value={ingest.tags} onChange={e=>setIngest({...ingest,tags:e.target.value})}/><textarea className="input" rows={2} placeholder="why this matters / extraction goal" value={ingest.notes} onChange={e=>setIngest({...ingest,notes:e.target.value})}/><button className="primary hot" disabled={(!ingest.urls&&!files?.length)||!!busy} onClick={doIngest}>{busy==='ingest'?'ROUTING…':'ROUTE / QUEUE SOURCES'}</button></Panel>
-      <AIIntelligencePanel data={aiEngine} paste={aiPaste} setPaste={setAiPaste} busy={busy} submit={submitAiPaste} refresh={loadAiEngine} makeSkill={makeSkill} addToLoop={addSourceToLoop} patchSource={patchAiSource} patchSkill={patchSkill} patchPack={patchPack} copyPackReadme={copyPackReadme} open={setModal}/>
+      <AIIntelligencePanel data={aiEngine} paste={aiPaste} setPaste={setAiPaste} busy={busy} submit={submitAiPaste} refresh={loadAiEngine} makeSkill={makeSkill} addToLoop={addSourceToLoop} patchSource={patchAiSource} patchSkill={patchSkill} patchPack={patchPack} copyPackReadme={copyPackReadme} applyReaper={applyReaper} open={setModal}/>
     </section>}
 
     {tab==='SYSTEM'&&<section className="split">
@@ -189,9 +192,9 @@ function skillMarkdown(s:SkillSpec):string{
   return [`# Skill Spec`, ``, `## Name`, s.name, ``, `## Source`, ...(s.sourceUrls.length?s.sourceUrls.map(u=>`- ${u}`):['- Local note']), ``, `## Category`, s.category, ``, `## What it does`, s.whatItDoes, ``, `## When MAZos should use it`, s.whenToUse, ``, `## Inputs needed`, ...s.inputsNeeded.map(i=>`- ${i}`), ``, `## Expected output`, s.expectedOutput, ``, `## Required tools`, ...s.requiredTools.map(t=>`- ${t}`), ``, `## Safety / limits`, ...s.safetyRisks.map(r=>`- ${r}`), ``, `## Test plan`, ...s.testPlan.map(t=>`- ${t}`), ``, `## Keep / reject decision`, `- usefulness ${s.usefulnessScore}/100 · trust ${s.trustScore}/100 · risk ${s.riskLevel} · status ${s.status}`].join('\n');
 }
 
-function AIIntelligencePanel({data,paste,setPaste,busy,submit,refresh,makeSkill,addToLoop,patchSource,patchSkill,patchPack,copyPackReadme,open}:{data:AiEngineData|null;paste:string;setPaste:(v:string)=>void;busy:string;submit:()=>void;refresh:()=>void;makeSkill:(item:AiSourceItem)=>void;addToLoop:(item:AiSourceItem)=>void;patchSource:(id:string,status:string)=>void;patchSkill:(id:string,status:string)=>void;patchPack:(id:string,status:string)=>void;copyPackReadme:(id:string)=>void;open:(m:{title:string;body:React.ReactNode})=>void}){
-  const [view,setView]=useState<'Sources'|'Skills'|'Packs'>('Sources');
-  const inbox=data?.inbox.summary; const skills=data?.skills.summary; const packs=data?.packs.summary;
+function AIIntelligencePanel({data,paste,setPaste,busy,submit,refresh,makeSkill,addToLoop,patchSource,patchSkill,patchPack,copyPackReadme,applyReaper,open}:{data:AiEngineData|null;paste:string;setPaste:(v:string)=>void;busy:string;submit:()=>void;refresh:()=>void;makeSkill:(item:AiSourceItem)=>void;addToLoop:(item:AiSourceItem)=>void;patchSource:(id:string,status:string)=>void;patchSkill:(id:string,status:string)=>void;patchPack:(id:string,status:string)=>void;copyPackReadme:(id:string)=>void;applyReaper:(id:string)=>void;open:(m:{title:string;body:React.ReactNode})=>void}){
+  const [view,setView]=useState<'Sources'|'Skills'|'Packs'|'Reaper'>('Sources');
+  const inbox=data?.inbox.summary; const skills=data?.skills.summary; const packs=data?.packs.summary; const reaper=data?.reaper;
   const latest=data?.inbox.items.slice().sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).slice(0,6)||[];
   const topSkills=data?.skills.skills.filter(s=>s.status!=='archived'&&s.status!=='rejected').sort((a,b)=>b.usefulnessScore-a.usefulnessScore).slice(0,4)||[];
   const topPacks=data?.packs.packs.filter(p=>p.status!=='archived').slice(0,5)||[];
@@ -207,10 +210,10 @@ function AIIntelligencePanel({data,paste,setPaste,busy,submit,refresh,makeSkill,
       <span><b>{inbox?.countsByStatus?.new||0}</b> new</span>
       <span><b>{inbox?.topSkillCandidate?1:0}</b> skill pick</span>
       <span><b>{inbox?.topLoopCandidate?1:0}</b> loop pick</span>
-      <span><b>{topPacks.length}</b> packs</span>
+      <span><b>{reaper?.quickWins.length||0}</b> cleanups</span>
     </div>
-    <p className="aiNext">{inbox?.recommendedNextAction||'Paste sources to start the intelligence engine.'}</p>
-    <div className="chips aiSwitch">{(['Sources','Skills','Packs'] as const).map(v=><button key={v} className={`ghost ${view===v?'active':''}`} onClick={()=>setView(v)}>{v}</button>)}</div>
+    <p className="aiNext">{view==='Reaper' ? reaper?.nextAction || 'Run the cleanup loop to reduce MAZos.' : inbox?.recommendedNextAction||'Paste sources to start the intelligence engine.'}</p>
+    <div className="chips aiSwitch">{(['Sources','Skills','Packs','Reaper'] as const).map(v=><button key={v} className={`ghost ${view===v?'active':''}`} onClick={()=>setView(v)}>{v}</button>)}</div>
     {view==='Sources'&&<div className="aiList">{latest.length?latest.map(item=><article key={item.id} className="aiItem">
       <div className="repoTop"><h3>{item.title}</h3><span className="rowTags"><span className="tag">{item.sourcePlatform}</span><span className="tag">{item.sourceType}</span></span></div>
       <p>{item.summary}</p>
@@ -245,7 +248,26 @@ function AIIntelligencePanel({data,paste,setPaste,busy,submit,refresh,makeSkill,
         <button className="ghost" onClick={()=>patchPack(pack.id,'archived')}>Archive</button>
       </div>
     </article>):<p className="muted">Starter packs will seed after the first refresh.</p>}</div>}
+    {view==='Reaper'&&<div className="aiList">
+      {reaper?<>
+        <div className="reaperScore"><b>{reaper.score}</b><span>{reaper.verdict}</span></div>
+        <details open><summary>Product kernel</summary><ul className="summaryList">{reaper.productKernel.map(item=><li key={item}>{item}</li>)}</ul></details>
+        <h3>Safe quick wins</h3>
+        {reaper.quickWins.length?reaper.quickWins.map(item=><ReaperCard key={item.id} item={item} applyReaper={applyReaper}/>):<p className="muted">No safe cleanup to apply.</p>}
+        <h3>Advisory cleanup</h3>
+        {reaper.blockedActions.length?reaper.blockedActions.map(item=><ReaperCard key={item.id} item={item} applyReaper={applyReaper}/>):<p className="muted">No advisory cleanup waiting.</p>}
+      </>:<p className="muted">Loading cleanup loop...</p>}
+    </div>}
   </Panel>;
+}
+
+function ReaperCard({item,applyReaper}:{item:ReaperRecommendation;applyReaper:(id:string)=>void}){
+  return <article className="aiItem reaperItem">
+    <div className="repoTop"><h3>{item.title}</h3><span className="rowTags"><span className={`tag reaperSeverity ${item.severity}`}>{item.severity}</span><span className="tag">{item.action}</span></span></div>
+    <p>{item.reason}</p>
+    <small className="dim">{item.target} · {item.productImpact}</small>
+    <div className="chips">{item.safeToApply?<button className="ghost" onClick={()=>applyReaper(item.id)}>Apply Cleanup</button>:<button className="ghost" disabled>Review only</button>}</div>
+  </article>;
 }
 
 function CopyBlock({text}:{text:string}){ return <div><button className="ghost wide" onClick={()=>navigator.clipboard.writeText(text)}>Copy to clipboard</button><pre>{text}</pre></div>; }
