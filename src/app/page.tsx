@@ -145,6 +145,9 @@ export default function Page() {
 
     {tab==='NOW'&&<>
       <SpinePanel spine={spine} brief={brief} ship={ship} run={runAction} open={setModal} reload={loadSpine}/>
+      <StatsStrip spine={spine} ship={ship} repos={data.repos}/>
+      <LoopStrip/>
+      <RecentShippedStrip ship={ship} repos={data.repos}/>
     </>}
 
     {tab==='INBOX'&&<>
@@ -528,7 +531,7 @@ function SpinePanel({spine,brief,ship,run,open,reload}:{spine:SpineData|null;bri
     <div className="spineVerdict">
       <div>
         <p className="eyebrow">SHIP NEXT</p>
-        <h3>{v.product} — {v.action}</h3>
+        <h3><em>{v.product}</em> — {v.action}</h3>
         <p className="muted">Why: {v.why}</p>
         <p className="muted">Owner <b>{v.owner}</b> · <SafetyBadge level={v.safety}/> · agents can read <code>/api/mazos/shipping-spine</code>{spine.savedTo?<> or {spine.savedTo.split(/[\\/]/).slice(-1)[0]}</>:null}</p>
         {brief&&<p className="muted"><b>Avoid:</b> {brief.avoidToday}</p>}
@@ -568,6 +571,58 @@ function SpineRowCard({r,open}:{r:SpineRow;open:(m:{title:string;body:React.Reac
     </div>
   </article>;
 }
+function StatsStrip({spine,ship,repos}:{spine:SpineData|null;ship:ShipLogData|null;repos:Repo[]}){
+  if(!spine||!ship) return <Panel title="Stats" badge="no data"><p className="muted">Waiting for Shipping Spine and ship log data.</p></Panel>;
+  const products=spine.rows.length;
+  const blockers=spine.rows.filter(r=>r.blocked).length;
+  const commits7d=ship.counters.commits7d;
+  const dayMs=86400000;
+  const staleAges=spine.rows.filter(r=>r.staleFindings.length>0).map(r=>{
+    const repo=repos.find(rp=>rp.path&&r.repoPath&&rp.path===r.repoPath)
+      || repos.find(rp=>rp.label.toLowerCase()===r.product.toLowerCase())
+      || repos.find(rp=>rp.label.toLowerCase().includes(r.product.toLowerCase())||r.product.toLowerCase().includes(rp.label.toLowerCase()));
+    const iso=repo?.lastCommitIso||repo?.lastModified||null;
+    return iso?Math.floor((Date.now()-Date.parse(iso))/dayMs):null;
+  }).filter((n):n is number=>n!==null);
+  const oldestStaleDays=staleAges.length?Math.max(...staleAges):null;
+  return <Panel title="Stats" badge={`snapshot ${new Date(spine.generatedAt).toLocaleTimeString()}`}>
+    <div className="aiStats">
+      <span><b>{products}</b> products tracked</span>
+      <span><b>{oldestStaleDays!==null?`${oldestStaleDays}d`:'—'}</b> oldest stale touch</span>
+      <span><b>{blockers}</b> open blockers</span>
+      <span><b>{commits7d}</b> commits shipped · 7d</span>
+    </div>
+  </Panel>;
+}
+
+function LoopStrip(){
+  return <Panel title="Operating Loop" badge="Evidence → Rank → Ship">
+    <div className="massMoves loopMoves">
+      <div><b>Evidence</b><span>Repo scan, ship log, stale radar, and open decisions are read fresh from disk and git — no manual status updates.</span></div>
+      <div><b>Rank</b><span>The Shipping Spine scores every product on blocker state, evidence strength, and money weight, then sorts worst-blocked-first.</span></div>
+      <div><b>Ship</b><span>Done means the top row&apos;s done-criteria are met and verify commands pass — the handoff prompt carries both to the owner agent.</span></div>
+    </div>
+  </Panel>;
+}
+
+function RecentShippedStrip({ship,repos}:{ship:ShipLogData|null;repos:Repo[]}){
+  if(!ship) return <Panel title="Recently Shipped" badge="no data"><p className="muted">Waiting for ship log data.</p></Panel>;
+  const commits=ship.days.flatMap(d=>d.commits).slice(0,5);
+  if(commits.length===0) return <Panel title="Recently Shipped" badge="no data"><p className="muted">No commits in the last 7 days across tracked repos.</p></Panel>;
+  return <Panel title="Recently Shipped" badge={`${ship.counters.commits7d} commit(s) · 7d`}>
+    {commits.map((c,i)=>{
+      const repo=repos.find(rp=>rp.label.toLowerCase()===c.repo.toLowerCase());
+      const link=repo?.github?`${repo.github}/commit/${c.hash}`:null;
+      const days=Math.max(0,Math.floor((Date.now()-Date.parse(c.day))/86400000));
+      const rel=days===0?'today':days===1?'1d':`${days}d`;
+      const row=<><span><span className="tag">{c.repo}</span> {c.subject}</span><small>{rel}</small></>;
+      return link
+        ? <a key={`${c.hash}-${i}`} className="history" style={{textDecoration:'none'}} href={link} target="_blank" rel="noreferrer">{row}</a>
+        : <div key={`${c.hash}-${i}`} className="history">{row}</div>;
+    })}
+  </Panel>;
+}
+
 // Four live lanes: the API collapses failed-checks/system-pressure into
 // blocked and stale-work/knowledge-gaps into watch.
 const LANES: {id:FeedLane; label:string}[] = [
