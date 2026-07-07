@@ -1,5 +1,7 @@
 import { buildFeed } from './feed';
 import { buildContextMap } from './sourceReceipts';
+import { buildSummary, readInbox } from './aiSourceInbox';
+import { buildSkillSummary, readSkills } from './skillFactory';
 
 export type MorningBrief = {
   generatedAt: string;
@@ -12,11 +14,29 @@ export type MorningBrief = {
   markdown: string;
   degraded: boolean;
   warnings: string[];
+  aiInbox: {
+    newCount: number;
+    topSkillCandidate: string | null;
+    topLoopCandidate: string | null;
+    recommendedAction: string;
+  };
+  trust: {
+    untrustedCount: number;
+    topRiskySkill: string | null;
+    topLowValueItem: string | null;
+    cleanupAction: string;
+  };
 };
 
 export async function buildMorningBrief(project = 'MAZos'): Promise<MorningBrief> {
   const feed = await buildFeed({ limit: 30 });
   const context = buildContextMap(project);
+  const inboxItems = readInbox();
+  const inbox = buildSummary(inboxItems);
+  const skillSummary = buildSkillSummary(readSkills());
+  const untrusted = inboxItems.filter((item) => item.trustScore < 40);
+  const lowValue = inboxItems.filter((item) => item.usefulnessScore < 35 && item.status === 'new').sort((a, b) => a.usefulnessScore - b.usefulnessScore)[0] || null;
+  const riskySkill = skillSummary.topCandidates.find((skill) => skill.riskLevel === 'high' || skill.trustScore < 40) || null;
   const live = feed.items.filter((item) => item.userState !== 'done' && item.userState !== 'cleared');
   const top = live[0];
   const ship = live.find((item) => item.type === 'shipping-spine') || top;
@@ -44,6 +64,18 @@ export async function buildMorningBrief(project = 'MAZos'): Promise<MorningBrief
     evidence,
     degraded: feed.degraded,
     warnings: feed.warnings,
+    aiInbox: {
+      newCount: inbox.countsByStatus.new || 0,
+      topSkillCandidate: inbox.topSkillCandidate?.title || null,
+      topLoopCandidate: inbox.topLoopCandidate?.title || null,
+      recommendedAction: inbox.recommendedNextAction,
+    },
+    trust: {
+      untrustedCount: untrusted.length,
+      topRiskySkill: riskySkill?.name || null,
+      topLowValueItem: lowValue?.title || null,
+      cleanupAction: lowValue ? `Archive or ignore low-value source: ${lowValue.title}` : 'No low-value AI source cleanup needed.',
+    },
   };
   const markdown = [
     `# MAZos Morning Command Brief`,
@@ -57,6 +89,18 @@ export async function buildMorningBrief(project = 'MAZos'): Promise<MorningBrief
     ``,
     `## Needs Maz`,
     ...brief.needsYou.map((item) => `- ${item}`),
+    ``,
+    `## AI Source Inbox`,
+    `- New sources: ${brief.aiInbox.newCount}`,
+    `- Top skill candidate: ${brief.aiInbox.topSkillCandidate || 'none'}`,
+    `- Top loop candidate: ${brief.aiInbox.topLoopCandidate || 'none'}`,
+    `- Recommended action: ${brief.aiInbox.recommendedAction}`,
+    ``,
+    `## Trust / Cleanup`,
+    `- Untrusted source count: ${brief.trust.untrustedCount}`,
+    `- Risky skill: ${brief.trust.topRiskySkill || 'none'}`,
+    `- Low-value item: ${brief.trust.topLowValueItem || 'none'}`,
+    `- Cleanup action: ${brief.trust.cleanupAction}`,
     ``,
     `## Avoid Today`,
     brief.avoidToday,
