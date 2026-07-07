@@ -166,6 +166,22 @@ function SystemStrip({sys}:{sys:SystemInternals|null}){
     {sys.disk&&<span>{sys.disk.drive.replace('\\','')} {sys.disk.freeGb} GB free</span>}
   </div>;
 }
+function ServerMorningBriefPanel({brief,open}:{brief:ServerBrief|null;open:(m:{title:string;body:React.ReactNode})=>void}){
+  if(!brief) return <Panel title="Morning Brief API" badge="loading"><p className="muted">Building server-side brief from feed, context map, and evidence receipts.</p></Panel>;
+  return <Panel title="Morning Brief API" badge={`${new Date(brief.generatedAt).toLocaleTimeString()}${brief.degraded?' · degraded':''}`}>
+    <div className="briefApi">
+      <p className="eyebrow">SERVER BRIEF</p>
+      <h3>{brief.headline}</h3>
+      <p className="muted"><b>Ship:</b> {brief.shipNext}</p>
+      <p className="muted"><b>Avoid:</b> {brief.avoidToday}</p>
+      <div className="chips">
+        <button className="primary hot" style={{width:'auto'}} onClick={()=>open({title:'Morning brief markdown',body:<CopyBlock text={brief.markdown}/>})}>Copy Brief</button>
+        <button className="ghost" onClick={()=>open({title:'Safest next prompt',body:<CopyBlock text={brief.safestNextPrompt}/>})}>Safest Prompt</button>
+      </div>
+    </div>
+    <ul className="summaryList briefNeeds">{brief.needsYou.slice(0,4).map((item,idx)=><li key={`${idx}-${item}`}>{item}</li>)}</ul>
+  </Panel>;
+}
 function ContextMapPanel({contextMap,open,reload}:{contextMap:ContextMap|null;open:(m:{title:string;body:React.ReactNode})=>void;reload:()=>void}){
   if(!contextMap) return <Panel title="Context Map" badge="loading"><p className="muted">Collecting repo, vault, OpenWiki, tool, and verify receipts.</p></Panel>;
   const readFirst=contextMap.receipts.filter(r=>r.readFirst);
