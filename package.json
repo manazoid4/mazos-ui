@@ -7,6 +7,7 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "next dev",
     "bridge": "node scripts/mazos-local-bridge.mjs",
+    "remote:publish": "node scripts/mazos-publish-remote-snapshot.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "tsc --noEmit"

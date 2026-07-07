@@ -13,6 +13,8 @@ export const LOOP_RECEIPTS = path.join(DATA_DIR, 'loop-receipts.jsonl');
 export const LOOPS_STATE = path.join(DATA_DIR, 'loops.json');
 export const CUSTOM_LOOPS = path.join(DATA_DIR, 'custom-loops.json');
 export const DECISIONS_LOG = path.join(DATA_DIR, 'decisions.jsonl');
+export const REMOTE_SNAPSHOT = path.join(DATA_DIR, 'remote-snapshot.json');
+export const REMOTE_INTENTS = path.join(DATA_DIR, 'remote-intents.jsonl');
 
 export const OPENWIKI_PATHS = {
   app: 'C:/Users/manaz/AppData/Local/OpenWiki/OpenWiki.exe',

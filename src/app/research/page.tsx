@@ -101,6 +101,7 @@ export default async function ResearchPage() {
         <p>Every research pass points to the same product move: MAZos needs a usefulness gate for loops, panels, and agent handoffs. The page below keeps that research visible and script-readable.</p>
         <div className="researchHeroActions">
           <Link className="researchPrimary" href="/api/mazos/research"><ClipboardList size={16} /> API JSON</Link>
+          <Link className="researchGhost" href="/api/mazos/remote"><Radar size={16} /> Remote Snapshot</Link>
           <a className="researchGhost" href="#queue"><GitBranch size={16} /> Build queue</a>
         </div>
       </div>

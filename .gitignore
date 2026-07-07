@@ -7,6 +7,8 @@ node_modules/
 .next/
 out/
 build/
+data/
+tsconfig.tsbuildinfo
 
 # Misc
 .DS_Store
