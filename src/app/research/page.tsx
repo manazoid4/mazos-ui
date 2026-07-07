@@ -139,7 +139,7 @@ export default async function ResearchPage() {
       </div>
     </section>
 
-    <section className="researchReports">
+    {radar.snapshots.length > 0 && <section className="researchReports">
       <div className="researchPanelHead"><h2>Competitor Radar</h2><span>{radar.sourceRule}</span></div>
       <div className="radarMatrix">
         {radar.snapshots.slice(0, 8).map((snapshot) => <article key={snapshot.competitor.id} className="radarCard">
@@ -161,7 +161,7 @@ export default async function ResearchPage() {
       <div className="researchMatrixList">
         {radar.matrix.map((row) => <div key={row.pattern}><b>{row.pattern}</b><span>{row.competitors.join(', ')}</span><p>{row.mazosMove}</p></div>)}
       </div>
-    </section>
+    </section>}
 
     <section className="researchReports massCompetitorSection">
       <div className="researchPanelHead"><h2>Mass Competitor List</h2><span>{massCatalog.total} tools · {massCatalog.copyNow} copy now</span></div>

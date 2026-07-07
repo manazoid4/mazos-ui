@@ -5,13 +5,11 @@ import { buildHandoff } from '@/lib/mazos/handoff';
 import { SAFETY_LEVELS, type SafetyLevel } from '@/lib/mazos/safety';
 import { buildLoopPrompt, type LoopState, type LoopStopReason } from '@/lib/mazos/loopEngine';
 import { buildResolutionPrompt, type DecisionItem } from '@/lib/mazos/decisions';
-import { computeStaleFindings, buildBabysitPrompt, type StaleFinding } from '@/lib/mazos/staleRadar';
 
 type Repo = { id:string; label:string; path:string; exists:boolean; branch:string; dirty:boolean; unpushedCount:number; lastModified:string|null; lastCommitIso?:string|null; packageManager:string; scripts:Record<string,string>; buildScript:boolean; lintScript:boolean; github:string };
 type Action = { id:string; label:string; description:string; category:string; enabled:boolean; disabledReason?:string; dangerLevel:string; safetyLevel:SafetyLevel; handler?:'command'|'prompt'|'repo'|'vault'; expectedOutput:string; fallbackPrompt:string };
 type Run = { success:boolean; actionId:string; label:string; cwd:string; commandPreview:string; stdout:string; stderr:string; exitCode:number|null; startedAt:string; finishedAt:string; durationMs:number; nextSuggestedAction:string };
 type Health = { id:string; label:string; kind:string; url?:string; path?:string; online:boolean; status:number|string; latencyMs:number; signal:string; meaning:string };
-type Vault = { doctrine:string[]; projectSignals:{name:string;mentions:number}[]; prompts:{source:string;text:string}[]; keyDocs:{source:string;title:string;bullets:string[]}[]; cockpitPanels:string[]; filesSeen:number };
 type Data = { mission:string; buttons:Action[]; repos:Repo[]; services:Health[]; runs:Run[]; vault:string };
 type DirtyGroups = Record<'app'|'generated'|'submodule'|'docs'|'unknown', string[]>;
 type ProjectStatus = { query:string; matchedProject:string|null; resolvedRepoPath:string|null; missing:string[]; latestCommits:string[]; gitStatus:string[]; dirtyGroups:DirtyGroups; currentEntries:string[]; loopState:string[]; warnings:string[]; blocker:string; nextBestAction:string; evidencePathsRead:string[]; latestCommit:string|null; currentBranch:string|null; githubRemote:string|null; verifyCommands:string[] };
@@ -74,7 +72,7 @@ async function mazosFetch(path:string, init?:RequestInit) {
 }
 
 export default function Page() {
-  const [data,setData]=useState<Data|null>(null), [vault,setVault]=useState<Vault|null>(null), [busy,setBusy]=useState(''), [modal,setModal]=useState<{title:string;body:React.ReactNode}|null>(null);
+  const [data,setData]=useState<Data|null>(null), [busy,setBusy]=useState(''), [modal,setModal]=useState<{title:string;body:React.ReactNode}|null>(null);
   const [ingest,setIngest]=useState({ urls:'', sourceType:'auto', target:'Recall', tags:'', notes:'' }); const [files,setFiles]=useState<FileList|null>(null); const [clock,setClock]=useState('');
   const [statusDeck,setStatusDeck]=useState<ProjectStatus[]>([]);
   const [routerTask,setRouterTask]=useState(''), [routerRecs,setRouterRecs]=useState<ToolRec[]>([]), [routerBusy,setRouterBusy]=useState(false);
@@ -91,7 +89,6 @@ export default function Page() {
   const [sys,setSys]=useState<SystemInternals|null>(null);
   async function loadSys(){ try{ const r=await mazosFetch('/api/mazos/system').then(r=>r.json()); setSys(r&&r.local?r:null); }catch{ setSys(null); } }
   async function refresh(){ const [main,repos,health,runs]=await Promise.all([mazosFetch('/api/mazos').then(r=>r.json()),mazosFetch('/api/mazos/repos').then(r=>r.json()),mazosFetch('/api/mazos/health').then(r=>r.json()),mazosFetch('/api/mazos/runs?limit=8').then(r=>r.json())]); setData({...main, repos:repos.repos, services:health.services, runs:runs.runs, buttons:main.buttons||[]}); }
-  async function loadVault(){ const v=await mazosFetch('/api/mazos/vault').then(r=>r.json()); setVault(v); return v; }
   async function loadStatusDeck(){ const names=['JobFilter','Recall','MAZos','Vault']; const statuses=await Promise.all(names.map(name=>mazosFetch(`/api/mazos/project-status?project=${encodeURIComponent(name)}`).then(r=>r.json()))); setStatusDeck(statuses.filter(x=>!x.error)); }
   async function loadLoops(){ const r=await mazosFetch('/api/mazos/loops').then(r=>r.json()); setLoops(r.loops||[]); }
   async function loadDecisions(){ const r=await mazosFetch('/api/mazos/decisions').then(r=>r.json()); setDecisions(r.decisions||[]); }
@@ -108,11 +105,10 @@ export default function Page() {
   async function resolveDecision(id:string, status:string, resolution:string){ const r=await mazosFetch('/api/mazos/decisions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'resolve',id,status,resolution})}).then(r=>r.json()); if(r.decisions){ setDecisions(r.decisions); const item=(r.decisions as DecisionItem[]).find(d=>d.id===id); if(item) setModal({title:'Resolution prompt · paste to the waiting agent',body:<CopyBlock text={buildResolutionPrompt(item)}/>}); } }
   async function addDecision(question:string, context:string){ const r=await mazosFetch('/api/mazos/decisions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'open',source:'manual',question,context})}).then(r=>r.json()); if(r.decisions) setDecisions(r.decisions); }
   async function routeTool(){ if(!routerTask.trim())return; setRouterBusy(true); const [r]=await Promise.all([mazosFetch(`/api/mazos/tool-router?task=${encodeURIComponent(routerTask)}`).then(r=>r.json()), loadRuntimes(routerTask)]); setRouterRecs(r.recommendations||[]); setRouterBusy(false); }
-  useEffect(()=>{ document.documentElement.dataset.theme='dark'; setTab(normalizeTab(localStorage.getItem('mazos-tab'))); bridgeHealth().then(setBridge); refresh(); loadVault(); loadStatusDeck(); loadLoops(); loadDecisions(); loadShip(); loadSpine(); loadFeed(); loadBrief(); loadContextMap(); loadRuntimes(); loadSys(); const t=setInterval(()=>setClock(new Date().toLocaleTimeString()),1000); const ts=setInterval(loadSys,30_000); return()=>{clearInterval(t);clearInterval(ts);}; },[]);
+  useEffect(()=>{ document.documentElement.dataset.theme='dark'; setTab(normalizeTab(localStorage.getItem('mazos-tab'))); bridgeHealth().then(setBridge); refresh(); loadStatusDeck(); loadLoops(); loadDecisions(); loadShip(); loadSpine(); loadFeed(); loadBrief(); loadContextMap(); loadRuntimes(); loadSys(); const t=setInterval(()=>setClock(new Date().toLocaleTimeString()),1000); const ts=setInterval(loadSys,30_000); return()=>{clearInterval(t);clearInterval(ts);}; },[]);
   useEffect(()=>{ localStorage.setItem('mazos-tab',tab); },[tab]);
   useEffect(()=>{ const h=(e:KeyboardEvent)=>{ if((e.ctrlKey&&e.key.toLowerCase()==='k')||(e.key==='/'&&!(e.target as HTMLElement).closest('input,textarea,select'))){ e.preventDefault(); setPaletteOpen(o=>!o); } if(e.key==='Escape') setPaletteOpen(false); }; window.addEventListener('keydown',h); return()=>window.removeEventListener('keydown',h); },[]);
   const summary=useMemo(()=> data ? { existing:data.repos.filter(r=>r.exists).length, dirty:data.repos.filter(r=>r.dirty).length, optionalDown:data.services.filter(s=>!s.online&&s.signal==='not-running').length, critical:data.services.filter(s=>!s.online&&s.signal!=='not-running').length } : null,[data]);
-  const findings=useMemo(()=> data?computeStaleFindings(data.repos):[],[data]);
   const openDecisions=decisions.filter(d=>d.status==='open');
   async function runAction(id:string){ setBusy(id); const r=await mazosFetch('/api/mazos/action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})}).then(r=>r.json()); setBusy(''); setModal({title:r.label, body:<Result r={r}/>}); refresh(); }
   async function loadContextPack(project:string){ setBusy('context-pack'); const r=await mazosFetch(`/api/mazos/context-pack?project=${encodeURIComponent(project)}`).then(r=>r.json()); setBusy(''); if(r.error){ setModal({title:'Context Pack',body:r.error}); return; } setModal({title:`Context Pack · ${r.project} · ${r.lines} lines`,body:<div><CopyBlock text={r.markdown}/><p className="muted">Saved: {r.savedTo}</p></div>}); }
@@ -126,8 +122,7 @@ export default function Page() {
     <nav className="tabs">{TABS.map(t=><button key={t} className={`tabBtn ${tab===t?'active':''}`} onClick={()=>setTab(t)}>{t}{t==='WORK'&&openDecisions.length>0&&<span className="tabBadge">{openDecisions.length}</span>}{t==='INBOX'&&(feed?.filters.unreadCount??0)>0&&<span className="tabBadge">{feed!.filters.unreadCount}</span>}</button>)}<button className="tabBtn paletteHint" onClick={()=>setPaletteOpen(true)}>⌘ Ctrl+K</button></nav>
 
     {tab==='NOW'&&<>
-      <SpinePanel spine={spine} run={runAction} open={setModal} reload={loadSpine}/>
-      <ServerMorningBriefPanel brief={brief} open={setModal}/>
+      <SpinePanel spine={spine} brief={brief} ship={ship} run={runAction} open={setModal} reload={loadSpine}/>
     </>}
 
     {tab==='INBOX'&&<>
@@ -139,35 +134,19 @@ export default function Page() {
         <div className="repos">{statusDeck.map(s=><ProjectCard key={s.query} status={s} open={setModal} pack={loadContextPack} busy={busy}/>)}</div>
       </Panel>
       <LoopFactoryPanel form={loopFactory} setForm={setLoopFactory} draft={loopDraft} busy={busy} draftLoop={draftLoop} saveLoop={saveLoop} open={setModal}/>
-      <LoopDoctorPanel loops={loops}/>
-      <Panel title="Loop Engineering Deck" badge="prompts out · evidence in · MAZos never executes"><div className="loopDeck">{loops.map(l=><LoopCard key={l.def.id} loop={l} event={loopEvent} open={setModal}/>)}</div></Panel>
+      <Panel title="Loop Engineering Deck" badge={deckBadge(loops)}><div className="loopDeck">{loops.map(l=><LoopCard key={l.def.id} loop={l} event={loopEvent} open={setModal}/>)}</div></Panel>
       <DecisionInbox decisions={decisions} resolve={resolveDecision} add={addDecision} open={setModal}/>
-      <ContextMapPanel contextMap={contextMap} open={setModal} reload={()=>loadContextMap('MAZos')}/>
-      <section className="split">
-        <Panel title="Ship Log" badge={ship?`${ship.counters.commits7d} commits 7d · ${ship.counters.reposActive} repos · runs ${ship.counters.runsOk}✓/${ship.counters.runsFail}✗`:'loading'}>
-          {ship?<><div className="shipCounters"><span><b>{ship.counters.commitsToday}</b> today</span><span><b>{ship.counters.commits7d}</b> 7 days</span><span><b>{ship.counters.reposActive}</b> repos active</span><span><b>{ship.counters.runsOk}</b> runs ok</span><span><b>{ship.counters.runsFail}</b> runs fail</span></div>
-          <div className="chips"><button className="primary" style={{width:'auto'}} onClick={()=>{navigator.clipboard.writeText(ship.markdown); setModal({title:'Publishable update copied',body:<CopyBlock text={ship.markdown}/>});}}>COPY PUBLISHABLE UPDATE</button><button className="ghost" onClick={loadShip}>Refresh</button></div>
-          <details><summary>preview</summary><pre>{ship.markdown}</pre></details></>:<p className="muted">Loading ship log…</p>}
-        </Panel>
-        <Panel title="Stale Work Radar" badge={`${findings.length} finding(s) · read-only`}>{findings.length===0?<p className="muted">Nothing stale. All trees clean and pushed.</p>:<div className="findings">{findings.map((f,i)=><StaleRow key={i} f={f} repos={data.repos} open={setModal}/>)}</div>}</Panel>
-      </section>
-      <section className="split">
-        <Panel title="Repo Command Centre" badge="summaries over logs"><div className="repos">{data.repos.map(r=><RepoCard key={r.id} repo={r} run={runAction} open={(m)=>setModal(m)}/>)}</div></Panel>
-        <HandoffPanel statuses={statusDeck} open={setModal}/>
-      </section>
+      <AgentPrepPanel statuses={statusDeck} contextMap={contextMap} reloadContext={()=>loadContextMap('MAZos')} routerTask={routerTask} setRouterTask={setRouterTask} routerRecs={routerRecs} routerBusy={routerBusy} route={routeTool} registry={runtimeRegistry} reloadRuntimes={()=>loadRuntimes(routerTask)} open={setModal}/>
     </>}
 
     {tab==='INTAKE'&&<section className="triad">
       <Panel title="Source Intake" badge="writes queue"><textarea className="input big" rows={5} placeholder="Paste YouTube / Instagram / X / web URLs — one per line" value={ingest.urls} onChange={e=>setIngest({...ingest,urls:e.target.value})}/><div className="cols"><select className="input" value={ingest.sourceType} onChange={e=>setIngest({...ingest,sourceType:e.target.value})}>{['auto','youtube','instagram','x','pdf','webpage'].map(x=><option key={x}>{x}</option>)}</select><select className="input" value={ingest.target} onChange={e=>setIngest({...ingest,target:e.target.value})}>{['Recall','Obsidian','JobFilter research'].map(x=><option key={x}>{x}</option>)}</select></div><label className="drop"><input type="file" multiple accept=".pdf,.txt,.md" onChange={e=>setFiles(e.target.files)}/><span>{files?.length?`${files.length} file(s) staged`:'Drop PDFs / notes here'}</span></label><input className="input" placeholder="tags e.g. recall market youtube" value={ingest.tags} onChange={e=>setIngest({...ingest,tags:e.target.value})}/><textarea className="input" rows={2} placeholder="why this matters / extraction goal" value={ingest.notes} onChange={e=>setIngest({...ingest,notes:e.target.value})}/><button className="primary hot" disabled={(!ingest.urls&&!files?.length)||!!busy} onClick={doIngest}>{busy==='ingest'?'ROUTING…':'ROUTE / QUEUE SOURCES'}</button></Panel>
-      <Panel title="Vault Intelligence" badge={`${vault?.filesSeen||0} notes · scan writes files`}><div className="intel">{(vault?.doctrine||[]).slice(0,4).map(x=><button key={x} onClick={()=>setModal({title:'Vault Doctrine',body:x})}>{x}</button>)}</div><button className="ghost wide" onClick={()=>setModal({title:'Useful Prompts',body:<PromptList vault={vault}/>})}>Open Prompt Library Summary</button><button className="ghost wide" onClick={()=>loadVault().then(v=>setModal({title:'Vault Scan Complete',body:<PromptList vault={v}/>}))}>Rescan Vault Intel</button></Panel>
-      <ToolRouterPanel task={routerTask} setTask={setRouterTask} recs={routerRecs} busy={routerBusy} route={routeTool} open={setModal}/>
     </section>}
 
     {tab==='SYSTEM'&&<section className="split">
       <div><Panel title="Ops Radar" badge="local + cloud"><div className="radar">{data.services.map(s=><button key={s.id} onClick={()=>setModal({title:s.label,body:<ServiceDetail s={s}/>})} className={`orb ${s.online?'on':'off'} ${s.signal==='not-running'?'idle':''}`}><b>{s.label}</b><span>{s.online?`${s.status} · ${s.latencyMs}ms`:s.signal}</span><small>{s.url||s.path}</small></button>)}</div></Panel>
       <Panel title="Action Matrix" badge="click → summary modal">{cats.map(c=><div key={c} className="actionBlock"><h3>{c}</h3><div className="chips">{(byCat[c] as Action[]).map(a=><ActionLine key={a.id} a={a} run={runAction} busy={busy}/>)}</div></div>)}</Panel></div>
-      <div><RuntimeSafetyPanel registry={runtimeRegistry} open={setModal} reload={()=>loadRuntimes(routerTask)}/>
-      <Panel title="Run History" badge="last 8">{data.runs?.slice(0,8).map((r,i)=><button className="history" key={i} onClick={()=>setModal({title:r.label,body:<Result r={r}/>})}><span>{r.success?'✓':'✗'} {r.label}</span><small>{new Date(r.finishedAt).toLocaleTimeString()}</small></button>)}{(!data.runs||data.runs.length===0)&&<p className="muted">No runs yet.</p>}</Panel></div>
+      <div><Panel title="Run History" badge="last 8">{data.runs?.slice(0,8).map((r,i)=><button className="history" key={i} onClick={()=>setModal({title:r.label,body:<Result r={r}/>})}><span>{r.success?'✓':'✗'} {r.label}</span><small>{new Date(r.finishedAt).toLocaleTimeString()}</small></button>)}{(!data.runs||data.runs.length===0)&&<p className="muted">No runs yet.</p>}</Panel></div>
     </section>}
 
     {paletteOpen&&<CommandPalette actions={data.buttons} loops={loops} projects={statusDeck} close={()=>setPaletteOpen(false)} exec={{runAction,setTab,openLoopPrompt:(l:LoopState)=>setModal({title:`Loop prompt · ${l.def.name}`,body:<CopyBlock text={buildLoopPrompt(l.def)}/>})}}/>}
@@ -186,22 +165,6 @@ function SystemStrip({sys}:{sys:SystemInternals|null}){
     {sys.gpu&&<span className={sys.pressure.vram?'sysHot':''}>VRAM {gb(sys.gpu.vramUsedMb)}/{gb(sys.gpu.vramTotalMb)} GB · GPU {sys.gpu.utilizationPct}% · {sys.gpu.temperatureC}°C</span>}
     {sys.disk&&<span>{sys.disk.drive.replace('\\','')} {sys.disk.freeGb} GB free</span>}
   </div>;
-}
-function ServerMorningBriefPanel({brief,open}:{brief:ServerBrief|null;open:(m:{title:string;body:React.ReactNode})=>void}){
-  if(!brief) return <Panel title="Morning Brief API" badge="loading"><p className="muted">Building server-side brief from feed, context map, and evidence receipts.</p></Panel>;
-  return <Panel title="Morning Brief API" badge={`${new Date(brief.generatedAt).toLocaleTimeString()}${brief.degraded?' · degraded':''}`}>
-    <div className="briefApi">
-      <p className="eyebrow">SERVER BRIEF</p>
-      <h3>{brief.headline}</h3>
-      <p className="muted"><b>Ship:</b> {brief.shipNext}</p>
-      <p className="muted"><b>Avoid:</b> {brief.avoidToday}</p>
-      <div className="chips">
-        <button className="primary hot" style={{width:'auto'}} onClick={()=>open({title:'Morning brief markdown',body:<CopyBlock text={brief.markdown}/>})}>Copy Brief</button>
-        <button className="ghost" onClick={()=>open({title:'Safest next prompt',body:<CopyBlock text={brief.safestNextPrompt}/>})}>Safest Prompt</button>
-      </div>
-    </div>
-    <ul className="summaryList briefNeeds">{brief.needsYou.slice(0,4).map((item,idx)=><li key={`${idx}-${item}`}>{item}</li>)}</ul>
-  </Panel>;
 }
 function ContextMapPanel({contextMap,open,reload}:{contextMap:ContextMap|null;open:(m:{title:string;body:React.ReactNode})=>void;reload:()=>void}){
   if(!contextMap) return <Panel title="Context Map" badge="loading"><p className="muted">Collecting repo, vault, OpenWiki, tool, and verify receipts.</p></Panel>;
@@ -277,23 +240,26 @@ function CommandPalette({actions,loops,projects,close,exec}:{actions:Action[];lo
 function decisionClass(decision?:LoopUsefulnessAudit['decision']){
   return decision==='keep'?'ok':decision==='remove'?'bad':decision==='merge'?'merge':'revise';
 }
-function LoopDoctorPanel({loops}:{loops:AuditedLoopState[]}){
+// Loop Doctor lives on the cards; the deck badge carries the aggregate line.
+function deckBadge(loops:AuditedLoopState[]){
   const audits=loops.map(l=>l.audit).filter(Boolean) as LoopUsefulnessAudit[];
-  const avg=audits.length?Math.round(audits.reduce((sum,a)=>sum+a.score,0)/audits.length):0;
-  const counts={keep:audits.filter(a=>a.decision==='keep').length,revise:audits.filter(a=>a.decision==='revise').length,merge:audits.filter(a=>a.decision==='merge').length,remove:audits.filter(a=>a.decision==='remove').length};
-  const topGaps=Array.from(new Set(audits.flatMap(a=>a.gaps))).slice(0,4);
-  return <Panel title="Loop Doctor" badge={`${avg}/100 average · ${counts.keep} keep · ${counts.revise} revise · ${counts.merge} merge · ${counts.remove} remove`}>
-    <div className="doctorGrid">
-      <div className="doctorScore"><b>{avg}</b><span>average usefulness</span><small>Scored on trigger, source policy, latest GitHub, evidence, verifier, safety, stops, and product impact.</small></div>
-      <div className="doctorDecisions">
-        {(['keep','revise','merge','remove'] as const).map(d=><span key={d} className={`doctorPill ${decisionClass(d)}`}><b>{counts[d]}</b>{d}</span>)}
-      </div>
-      <div className="doctorGaps">
-        <b>Top cleanup gaps</b>
-        {topGaps.length?<ul>{topGaps.map(g=><li key={g}>{g}</li>)}</ul>:<p className="muted">No major gaps found.</p>}
-      </div>
-    </div>
-  </Panel>;
+  if(!audits.length) return 'prompts out · evidence in · MAZos never executes';
+  const avg=Math.round(audits.reduce((sum,a)=>sum+a.score,0)/audits.length);
+  const count=(d:LoopUsefulnessAudit['decision'])=>audits.filter(a=>a.decision===d).length;
+  return `doctor ${avg}/100 avg · ${count('keep')} keep · ${count('revise')} revise · ${count('merge')} merge · ${count('remove')} remove`;
+}
+
+type AgentPrepView='Handoff'|'Context'|'Router'|'Runtime';
+const AGENT_PREP_VIEWS:AgentPrepView[]=['Handoff','Context','Router','Runtime'];
+function AgentPrepPanel({statuses,contextMap,reloadContext,routerTask,setRouterTask,routerRecs,routerBusy,route,registry,reloadRuntimes,open}:{statuses:ProjectStatus[];contextMap:ContextMap|null;reloadContext:()=>void;routerTask:string;setRouterTask:(v:string)=>void;routerRecs:ToolRec[];routerBusy:boolean;route:()=>void;registry:AgentRuntimeRegistry|null;reloadRuntimes:()=>void;open:(m:{title:string;body:React.ReactNode})=>void}){
+  const [view,setView]=useState<AgentPrepView>('Handoff');
+  return <section className="agentPrep">
+    <div className="chips">{AGENT_PREP_VIEWS.map(v=><button key={v} className={`ghost ${view===v?'active':''}`} onClick={()=>setView(v)}>{v}</button>)}</div>
+    {view==='Handoff'&&<HandoffPanel statuses={statuses} open={open}/>}
+    {view==='Context'&&<ContextMapPanel contextMap={contextMap} open={open} reload={reloadContext}/>}
+    {view==='Router'&&<ToolRouterPanel task={routerTask} setTask={setRouterTask} recs={routerRecs} busy={routerBusy} route={route} open={open}/>}
+    {view==='Runtime'&&<RuntimeSafetyPanel registry={registry} open={open} reload={reloadRuntimes}/>}
+  </section>;
 }
 
 const LOOP_PATTERN_OPTIONS:[LoopPatternId,string][]=[
@@ -423,19 +389,7 @@ function DecisionInbox({decisions,resolve,add,open}:{decisions:DecisionItem[];re
   </Panel>;
 }
 
-function StaleRow({f,repos,open}:{f:StaleFinding;repos:Repo[];open:(m:{title:string;body:React.ReactNode})=>void}){
-  const repo=repos.find(r=>r.id===f.repoId);
-  return <div className={`finding ${f.severity}`}>
-    <div className="repoTop"><b>{f.repoLabel} — {f.title}</b><span className="tag">{f.severity}</span></div>
-    <small>{f.evidence}</small>
-    <div className="chips">
-      <button className="ghost" onClick={()=>{navigator.clipboard.writeText(f.nextCommand); open({title:'Next command copied',body:<CopyBlock text={f.nextCommand}/>});}}>Next command</button>
-      <button className="ghost" onClick={()=>{const p=buildBabysitPrompt(f,repo?.path||''); navigator.clipboard.writeText(p); open({title:`Babysit prompt · ${f.repoLabel}`,body:<CopyBlock text={p}/>});}}>Babysit prompt</button>
-    </div>
-  </div>;
-}
-
-function SpinePanel({spine,run,open,reload}:{spine:SpineData|null;run:(id:string)=>void;open:(m:{title:string;body:React.ReactNode})=>void;reload:()=>void}){
+function SpinePanel({spine,brief,ship,run,open,reload}:{spine:SpineData|null;brief:ServerBrief|null;ship:ShipLogData|null;run:(id:string)=>void;open:(m:{title:string;body:React.ReactNode})=>void;reload:()=>void}){
   if(!spine) return <Panel title="Shipping Spine" badge="combining evidence…"><p className="muted">Reading project status, ship log, stale radar, decisions, playbooks…</p></Panel>;
   const v=spine.verdict; const topRow=spine.rows.find(r=>r.product===v.product);
   return <Panel title="Shipping Spine" badge={`objective · next · evidence · owner — snapshot ${new Date(spine.generatedAt).toLocaleTimeString()}`}>
@@ -445,20 +399,23 @@ function SpinePanel({spine,run,open,reload}:{spine:SpineData|null;run:(id:string
         <h3>{v.product} — {v.action}</h3>
         <p className="muted">Why: {v.why}</p>
         <p className="muted">Owner <b>{v.owner}</b> · <SafetyBadge level={v.safety}/> · agents can read <code>/api/mazos/shipping-spine</code>{spine.savedTo?<> or {spine.savedTo.split(/[\\/]/).slice(-1)[0]}</>:null}</p>
+        {brief&&<p className="muted"><b>Avoid:</b> {brief.avoidToday}</p>}
       </div>
       <div className="chips spineVerdictBtns">
         {topRow&&<button className="primary hot" onClick={()=>{navigator.clipboard.writeText(topRow.handoffPrompt); open({title:`Handoff · ${topRow.product} · ${v.owner}`,body:<CopyBlock text={topRow.handoffPrompt}/>});}}>COPY HANDOFF</button>}
         <button className="ghost" onClick={()=>open({title:'Shipping Spine · agent snapshot',body:<CopyBlock text={spine.markdown}/>})}>Agent snapshot</button>
+        {brief&&<button className="ghost" onClick={()=>open({title:'Morning brief markdown',body:<CopyBlock text={brief.markdown}/>})}>Copy Brief</button>}
         <button className="ghost" onClick={reload}>Recompute</button>
       </div>
     </div>
+    {brief&&<ul className="summaryList briefNeeds">{brief.needsYou.slice(0,4).map((item,idx)=><li key={`${idx}-${item}`}>{item}</li>)}</ul>}
     <div className="spineRows">{spine.rows.map(r=><SpineRowCard key={r.productId} r={r} open={open}/>)}</div>
     <div className="chips spineFooter">
       <button className="ghost" onClick={()=>run('continue_important_task')}><b>Next action prompt</b><small>from cockpit</small></button>
-      <button className="ghost" onClick={()=>location.href='/focus'}><b>Focus sprint</b><small>45 min, accountable</small></button>
       <button className="ghost" onClick={()=>run('daily_triage_l1')}><b>Daily Triage L1</b><small>report-only</small></button>
       <button className="ghost" onClick={()=>run('repo_health_scan')}><b>Repo status</b><small>read-only</small></button>
       <button className="ghost" onClick={()=>run('github_update_report')}><b>GitHub report prompt</b><small>no push</small></button>
+      {ship&&<button className="ghost" onClick={()=>{navigator.clipboard.writeText(ship.markdown); open({title:'Publishable update copied',body:<CopyBlock text={ship.markdown}/>});}}><b>Copy publishable update</b><small>{ship.counters.commits7d} commits 7d</small></button>}
     </div>
   </Panel>;
 }
@@ -479,14 +436,12 @@ function SpineRowCard({r,open}:{r:SpineRow;open:(m:{title:string;body:React.Reac
     </div>
   </article>;
 }
+// Four live lanes: the API collapses failed-checks/system-pressure into
+// blocked and stale-work/knowledge-gaps into watch.
 const LANES: {id:FeedLane; label:string}[] = [
   {id:'needs-decision',label:'Needs Decision'},
-  {id:'blocked',label:'Blocked'},
-  {id:'failed-checks',label:'Failed Checks'},
-  {id:'system-pressure',label:'System Pressure'},
-  {id:'stale-work',label:'Stale Work'},
+  {id:'blocked',label:'Blocked / Failed'},
   {id:'ready-to-ship',label:'Ready to Ship'},
-  {id:'knowledge-gaps',label:'Knowledge Gaps'},
   {id:'watch',label:'Watch'},
 ];
 const PARKED_STATES:FeedUserState[]=['done','cleared','snoozed'];
@@ -534,8 +489,7 @@ function MorningBrief({feed,items,open,goNow}:{feed:FeedData;items:FeedItem[];op
   const live=items.filter(i=>!PARKED_STATES.includes(i.userState));
   const count=(l:FeedLane)=>live.filter(i=>laneOf(i)===l).length;
   const spine=live.find(i=>i.type==='shipping-spine');
-  const pressure=live.find(i=>i.lane==='system-pressure');
-  const gaps=count('knowledge-gaps');
+  const pressure=live.find(i=>i.type==='system');
   const top=live[0];
   const ignore=[...live].reverse().find(i=>i.lane==='watch'&&!i.requiresAttention);
   const stat=(n:number,label:string)=> n>0?<span className="briefStat hotStat"><b>{n}</b> {label}</span>:<span className="briefStat"><b>0</b> {label}</span>;
@@ -552,10 +506,9 @@ function MorningBrief({feed,items,open,goNow}:{feed:FeedData;items:FeedItem[];op
     </div>
     <div className="briefStats">
       {stat(count('needs-decision'),'decisions')}
-      {stat(count('failed-checks'),'failed checks')}
-      {stat(count('blocked'),'blocked')}
-      {stat(count('stale-work'),'stale')}
-      {gaps>0?stat(gaps,'knowledge gaps'):null}
+      {stat(count('blocked'),'blocked / failed')}
+      {stat(count('ready-to-ship'),'ready')}
+      {stat(count('watch'),'watch')}
       {pressure&&<span className="briefStat hotStat"><b>!</b> {pressure.title}</span>}
       {ignore&&<span className="briefStat dimStat">ignore: {ignore.title.slice(0,60)}</span>}
     </div>
@@ -636,9 +589,7 @@ function ProjectCard({status,open,pack,busy}:{status:ProjectStatus;open:(m:{titl
   </article>;
 }
 function EvidenceList({status}:{status:ProjectStatus}){ return <div><h3>Evidence paths read</h3><ul className="summaryList">{status.evidencePathsRead.map(x=><li key={x}>{x}</li>)}</ul>{status.missing.length>0&&<><h3>Missing</h3><ul className="summaryList">{status.missing.map(x=><li className="bad inline" key={x}>{x}</li>)}</ul></>}<h3>Verify commands</h3><ul className="summaryList">{status.verifyCommands.map(x=><li key={x}>{x}</li>)}</ul></div>; }
-function RepoCard({repo,run,open}:{repo:Repo;run:(id:string)=>void;open:(m:{title:string;body:React.ReactNode})=>void}){ const fix=`Fix ${repo.label}. Path: ${repo.path}. Inspect first. Run safe status/build/lint only. No destructive commands. Return summary not raw logs.`; return <article className={`repo ${repo.exists?'':'missing'}`}><div className="repoTop"><h3>{repo.label}</h3><span className={repo.dirty?'bad':'ok'}>{repo.exists?(repo.dirty?'dirty':'clean'):'missing'}</span></div><small>{repo.path}</small><dl><dt>branch</dt><dd>{repo.branch}</dd><dt>unpushed</dt><dd>{repo.unpushedCount}</dd><dt>pkg</dt><dd>{repo.packageManager}</dd><dt>scripts</dt><dd>{Object.keys(repo.scripts||{}).slice(0,5).join(', ')||'none'}</dd></dl><div className="chips"><button className="ghost" onClick={()=>run('repo_health_scan')}>Scan</button>{repo.buildScript&&<button className="ghost" onClick={()=>repo.id==='recall'?run('build_recall'):repo.id==='jobfilter'?run('jobfilter_build'):navigator.clipboard.writeText(`cd ${repo.path} && npm run build`)}>Build</button>}{repo.lintScript&&<button className="ghost" onClick={()=>navigator.clipboard.writeText(`cd ${repo.path} && npm run lint`)}>Lint</button>}{repo.github&&<button className="ghost" onClick={()=>open({title:`${repo.label} GitHub`,body:repo.github})}>GitHub</button>}<button className="ghost" onClick={()=>open({title:`${repo.label} Fix Prompt`,body:fix})}>Fix Prompt</button></div></article> }
 function ActionLine({a,run,busy}:{a?:Action;run:(id:string)=>void;busy:string}){ if(!a)return null; const mode=a.handler==='command'?'runs command':a.handler==='repo'?'reads repos':a.handler==='vault'?'writes scan files':'manual prompt'; return <button title={a.disabledReason||a.expectedOutput} disabled={!a.enabled||!!busy} onClick={()=>run(a.id)} className="ghost action"><span className="actionHead"><b>{busy===a.id?'… ':''}{a.label}</b>{a.safetyLevel&&<SafetyBadge level={a.safetyLevel}/>}</span><small>{mode} · {a.enabled?a.description:a.disabledReason}</small></button> }
 function Result({r}:{r:Run}){ const lines=(r.stdout||r.stderr||'').split('\n').filter(Boolean).slice(0,10); return <div><div className="consoleHead"><b>{r.label}</b><span className={r.success?'ok':'bad'}>{r.success?'OK':'FAIL'}</span></div><p className="muted">{r.commandPreview} · {r.durationMs}ms</p><ul className="summaryList">{lines.map((l,i)=><li key={i}>{l.slice(0,220)}</li>)}</ul><details><summary>raw output</summary><pre>{r.stdout||r.stderr}</pre></details><p className="muted">Next: {r.nextSuggestedAction}</p></div>}
 function ServiceDetail({s}:{s:Health}){return <div><p>{s.meaning}</p><dl><dt>kind</dt><dd>{s.kind}</dd><dt>signal</dt><dd>{s.signal}</dd><dt>endpoint</dt><dd>{s.url||s.path}</dd><dt>latency</dt><dd>{s.latencyMs}ms</dd></dl></div>}
-function PromptList({vault}:{vault:Vault|null}){return <div><h3>Doctrine</h3><ul className="summaryList">{vault?.doctrine.map(x=><li key={x}>{x}</li>)}</ul><h3>Prompts</h3><ul className="summaryList">{vault?.prompts.slice(0,16).map((p,i)=><li key={i}><b>{p.source}</b> — {p.text}</li>)}</ul></div>}
 function Panel({title,badge,children}:{title:string;badge?:string;children:React.ReactNode}){return <section className="panel"><div className="panelHead"><h2>{title}</h2>{badge&&<small>{badge}</small>}</div>{children}</section>}
