@@ -4,6 +4,7 @@ import { Activity, Archive, ArrowRight, ClipboardList, FileText, GitBranch, Rada
 import { buildCompetitorRadar } from '@/lib/mazos/competitorRadar';
 import { buildMassCompetitorCatalog, type MassCompetitor } from '@/lib/mazos/massCompetitors';
 import { readResearchConsole, type ResearchPrompt, type ResearchReport } from '@/lib/mazos/research';
+import { ToLoopButton } from './ToLoopButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -96,6 +97,12 @@ function MassCompetitorCard({ competitor }: { competitor: MassCompetitor }) {
       <div><dt>MAZos move</dt><dd>{competitor.mazosMove}</dd></div>
     </dl>
     {competitor.repo && <a className="massRepoLink" href={`https://github.com/${competitor.repo}`}><GitBranch size={13} /> {competitor.repo}</a>}
+    <ToLoopButton
+      goal={competitor.mazosMove}
+      project="MAZos"
+      pattern={competitor.priority === 'watch' ? 'github-pulse' : 'research-intelligence'}
+      sources={[competitor.url, competitor.repo ? `https://github.com/${competitor.repo}` : ''].filter(Boolean).join('\n')}
+    />
   </article>;
 }
 
@@ -156,6 +163,12 @@ export default async function ResearchPage() {
           </div>}
           <div className="researchSourceChips">{snapshot.patterns.slice(0, 4).map((pattern) => <span key={pattern}>{pattern}</span>)}</div>
           <small>Loop pack: {snapshot.competitor.suggestedLoopPack}</small>
+          <ToLoopButton
+            goal={`Close the gap vs ${snapshot.competitor.name}: ${snapshot.mazosGap}`}
+            project="MAZos"
+            pattern="research-intelligence"
+            sources={[snapshot.competitor.repo ? `https://github.com/${snapshot.competitor.repo}` : '', snapshot.competitor.docsUrl].filter(Boolean).join('\n')}
+          />
         </article>)}
       </div>
       <div className="researchMatrixList">
