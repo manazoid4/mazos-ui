@@ -468,6 +468,19 @@ function applyFilters(items: FeedItem[], options: BuildFeedOptions) {
 
 const PARKED: FeedUserState[] = ['done', 'cleared', 'snoozed'];
 
+// Lane collapse: four live lanes only. Failed checks and system pressure are
+// forms of "blocked"; stale work and knowledge gaps are "watch" — the inbox
+// stays a decision surface, not a taxonomy.
+const LANE_COLLAPSE: Partial<Record<FeedLane, FeedLane>> = {
+  'failed-checks': 'blocked',
+  'system-pressure': 'blocked',
+  'stale-work': 'watch',
+  'knowledge-gaps': 'watch',
+};
+
+// Watch items never demand a read; cap how many make the response at all.
+const WATCH_CAP = 3;
+
 export async function buildFeed(options: BuildFeedOptions = {}): Promise<FeedResponse> {
   const warnings: string[] = [];
 
@@ -499,9 +512,10 @@ export async function buildFeed(options: BuildFeedOptions = {}): Promise<FeedRes
     const userState = stateFor(states, item.id);
     // Done/cleared/snoozed items stay in the response (searchable) but park in
     // the done lane and stop demanding attention.
-    return PARKED.includes(userState)
-      ? { ...item, userState, lane: 'done' as FeedLane, requiresAttention: false }
-      : { ...item, userState };
+    if (PARKED.includes(userState)) return { ...item, userState, lane: 'done' as FeedLane, requiresAttention: false };
+    const lane = LANE_COLLAPSE[item.lane] || item.lane;
+    // Watch items are born seen: they inform, they never demand a read.
+    return { ...item, lane, userState: lane === 'watch' && userState === 'unread' ? 'seen' as FeedUserState : userState };
   }).sort((a, b) =>
     Number(PARKED.includes(a.userState)) - Number(PARKED.includes(b.userState)) ||
     Number(b.requiresAttention) - Number(a.requiresAttention) ||
@@ -509,26 +523,37 @@ export async function buildFeed(options: BuildFeedOptions = {}): Promise<FeedRes
     b.createdAt.localeCompare(a.createdAt)
   );
 
-  const filtered = applyFilters(items, options).slice(0, Math.min(Math.max(options.limit || 12, 1), 30));
+  // Cap live watch items: items are already score-sorted, so the first
+  // WATCH_CAP watch rows are the strongest; the rest are dropped as noise.
+  let watchSeen = 0;
+  const capped = items.filter(i => {
+    if (PARKED.includes(i.userState) || i.lane !== 'watch') return true;
+    watchSeen += 1;
+    return watchSeen <= WATCH_CAP;
+  });
+
+  const filtered = applyFilters(capped, options).slice(0, Math.min(Math.max(options.limit || 12, 1), 30));
   const live = filtered.filter(i => !PARKED.includes(i.userState));
   const top = live[0] || null;
-  const spineItem = items.find(i => i.type === 'shipping-spine');
+  const spineItem = capped.find(i => i.type === 'shipping-spine');
   const changedWhatShipsNext = !!top && !!spineItem && top.id !== spineItem.id && top.score >= spineItem.score;
+  // One Verdict: the Shipping Spine speaks unless something genuinely outranks it.
+  const verdictItem = spineItem && !changedWhatShipsNext ? spineItem : top;
 
   return {
     generatedAt: new Date().toISOString(),
     mode: process.env.VERCEL ? 'hosted-fallback' : 'local',
     verdict: {
       changedWhatShipsNext,
-      headline: top ? `${top.title}` : 'No feed signals found.',
-      nextAction: top ? top.nextAction : 'Refresh MAZos after shipping activity, intake, or agent runs.',
+      headline: verdictItem ? `${verdictItem.title}` : 'No feed signals found.',
+      nextAction: verdictItem ? verdictItem.nextAction : 'Refresh MAZos after shipping activity, intake, or agent runs.',
       topItemId: top?.id || null,
     },
     filters: {
-      products: Array.from(new Set(items.map(i => i.product).filter(Boolean))) as string[],
-      types: Array.from(new Set(items.map(i => i.type))),
-      attentionCount: items.filter(i => i.requiresAttention).length,
-      unreadCount: items.filter(i => i.userState === 'unread').length,
+      products: Array.from(new Set(capped.map(i => i.product).filter(Boolean))) as string[],
+      types: Array.from(new Set(capped.map(i => i.type))),
+      attentionCount: capped.filter(i => i.requiresAttention).length,
+      unreadCount: capped.filter(i => i.userState === 'unread').length,
     },
     items: filtered,
     degraded: warnings.length > 0,

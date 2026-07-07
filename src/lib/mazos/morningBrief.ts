@@ -22,7 +22,9 @@ export async function buildMorningBrief(project = 'MAZos'): Promise<MorningBrief
   const ship = live.find((item) => item.type === 'shipping-spine') || top;
   const blocked = live.filter((item) => item.requiresAttention).slice(0, 5);
   const ignore = [...feed.items].reverse().find((item) => !item.requiresAttention && item.userState !== 'saved');
-  const prompt = top?.copyPrompt || context.copyPrompt;
+  // One Verdict: the spine handoff prompt is the safest next prompt; the
+  // generic top-item prompt is a fallback, not a competitor.
+  const prompt = ship?.copyPrompt || top?.copyPrompt || context.copyPrompt;
   const needsYou = blocked.length
     ? blocked.map((item) => `${item.lane}: ${item.title}`)
     : ['No urgent human gate in the current feed.'];
@@ -34,7 +36,7 @@ export async function buildMorningBrief(project = 'MAZos'): Promise<MorningBrief
 
   const brief = {
     generatedAt: new Date().toISOString(),
-    headline: top ? top.title : 'No feed signals found.',
+    headline: ship ? ship.title : top ? top.title : 'No feed signals found.',
     shipNext: ship ? `${ship.product || 'MAZos'}: ${ship.nextAction}` : context.nextBestAction,
     needsYou,
     avoidToday: ignore ? `Ignore unless contradicted: ${ignore.title}` : 'Do not start broad new work until the current spine item is handled.',
