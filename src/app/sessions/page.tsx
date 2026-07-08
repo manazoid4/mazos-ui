@@ -207,6 +207,8 @@ export default function SessionsPage() {
     <nav className="tabs">
       <button className="tabBtn" onClick={() => { location.href = '/'; }}>COCKPIT</button>
       <button className="tabBtn active">TASK GATE</button>
+      <button className="tabBtn" onClick={() => { location.href = '/openwiki'; }}>OPENWIKI</button>
+      <button className="tabBtn" onClick={() => { location.href = '/hermes'; }}>HERMES</button>
     </nav>
 
     <section className="split taskGrid">
