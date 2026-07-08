@@ -1,15 +1,21 @@
 import fs from 'fs';
 import path from 'path';
 import { spawnSync } from 'child_process';
-import { PATHS } from './paths';
+import { PATHS, ROOT } from './paths';
 
-const repos = [
-  { id: 'mazos_ui', label: 'MazOS UI', path: PATHS.mazos_ui, github: 'https://github.com/manazoid4/mazos-ui' },
-  { id: 'recall', label: 'Recall', path: PATHS.recall, github: '' },
-  { id: 'jobfilter', label: 'JobFilter', path: fs.existsSync(PATHS.jobfilter) ? PATHS.jobfilter : PATHS.jobfilter_alt, github: '' },
-  { id: 'openflowkit', label: 'OpenFlowKit', path: fs.existsSync(PATHS.openflowkit) ? PATHS.openflowkit : PATHS.openflowkit_alt, github: '' },
-  { id: 'obsidian', label: 'Obsidian Vault', path: PATHS.obsidian, github: '' },
-];
+type TrackedRepoConfig = { id: string; label: string; pathKey: keyof typeof PATHS; pathKeyAlt?: keyof typeof PATHS; github: string };
+
+function loadTrackedRepos(): TrackedRepoConfig[] {
+  const raw = fs.readFileSync(path.join(ROOT, 'config', 'tracked-repos.json'), 'utf8');
+  return JSON.parse(raw);
+}
+
+const repos = loadTrackedRepos().map(r => ({
+  id: r.id,
+  label: r.label,
+  path: r.pathKeyAlt && !fs.existsSync(PATHS[r.pathKey]) ? PATHS[r.pathKeyAlt] : PATHS[r.pathKey],
+  github: r.github,
+}));
 
 function git(cwd: string, args: string[]) {
   const r = spawnSync('git', args, { cwd, encoding: 'utf8', shell: false });

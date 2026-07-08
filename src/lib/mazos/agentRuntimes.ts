@@ -57,6 +57,18 @@ function runtimeStatus(pathHint: string): AgentRuntime['status'] {
   return pathHint ? 'configured' : 'unknown';
 }
 
+type AgentRuntimeConfig = {
+  id: string; name: string; kind: AgentRuntime['kind']; pathHint: string;
+  status?: AgentRuntime['status']; safetyCeiling?: SafetyLevel; allowedModes?: string[];
+  preferredTasks: string[]; forbiddenExtra?: string[]; validationCommands: string[];
+  bridgeAware: boolean; lastTraceHint: string;
+};
+
+function loadRuntimeConfigs(): AgentRuntimeConfig[] {
+  const raw = fs.readFileSync(path.join(ROOT, 'config', 'agent-runtimes.json'), 'utf8');
+  return JSON.parse(raw);
+}
+
 export function buildAgentRuntimeRegistry(task = ''): AgentRuntimeRegistry {
   const safety = readSafety();
   const shellModes = safety.allowShell ? ['prompt-only', 'safe shell', 'build/lint', 'research-first'] : ['prompt-only', 'research-first'];
@@ -67,78 +79,29 @@ export function buildAgentRuntimeRegistry(task = ''): AgentRuntimeRegistry {
     'No private scraping or authentication bypass.',
     safety.allowPush ? 'Push only through agents/* PR workflow.' : 'No GitHub push from MAZos UI.',
   ];
-  const runtimes: AgentRuntime[] = [
-    {
-      id: 'hermes',
-      name: 'Hermes',
-      kind: 'local',
-      status: runtimeStatus(path.join(USER_HOME, 'AppData', 'Local', 'hermes', 'hermes-agent')),
-      pathHint: 'C:/Users/manaz/AppData/Local/hermes/hermes-agent',
-      safetyCeiling: safety.allowShell ? 'L3' : 'L1',
-      allowedModes: shellModes,
-      preferredTasks: ['local memory', 'vault context', 'MAZos operation', 'long handoffs'],
-      forbidden: commonForbidden,
-      validationCommands: ['Use Task Gate first', 'Quote exact verification output'],
-      bridgeAware: true,
-      lastTraceHint: 'GET /api/mazos/flight-recorder?product=MAZos',
-    },
-    {
-      id: 'codex',
-      name: 'Codex',
-      kind: 'cli',
-      status: 'configured',
-      pathHint: 'Codex desktop / CLI session',
-      safetyCeiling: 'L3',
-      allowedModes: ['prompt-only', 'build/lint', 'research-first'],
-      preferredTasks: ['repo implementation', 'type fixes', 'GitHub PR workflow', 'local verification'],
-      forbidden: commonForbidden,
-      validationCommands: ['npm run lint', 'npm run build', 'git status --short'],
-      bridgeAware: false,
-      lastTraceHint: 'Use MAZos Flight Recorder for logged runs and gates.',
-    },
-    {
-      id: 'claude-code',
-      name: 'Claude Code',
-      kind: 'cli',
-      status: 'configured',
-      pathHint: 'Claude Code / Hermes-compatible local agent',
-      safetyCeiling: 'L3',
-      allowedModes: ['prompt-only', 'build/lint', 'research-first'],
-      preferredTasks: ['large refactors', 'product design', 'multi-file UI work', 'documentation'],
-      forbidden: commonForbidden,
-      validationCommands: ['Run repo-specific lint/build', 'Open PR from agents/* branch'],
-      bridgeAware: false,
-      lastTraceHint: 'Ask agent to paste final handoff into MAZos session note.',
-    },
-    {
-      id: 'opencode',
-      name: 'OpenCode',
-      kind: 'cli',
-      status: 'configured',
-      pathHint: 'OpenCode local CLI',
-      safetyCeiling: 'L2',
-      allowedModes: ['prompt-only', 'research-first'],
-      preferredTasks: ['inspection', 'small code edits', 'alternate review'],
-      forbidden: commonForbidden,
-      validationCommands: ['Prefer read-only inspect first', 'Escalate to Task Gate for writes'],
-      bridgeAware: false,
-      lastTraceHint: 'No native trace yet; create a mission plan before use.',
-    },
-    {
-      id: 'browser-agent',
-      name: 'Browser Agent',
-      kind: 'browser',
-      status: 'configured',
-      pathHint: 'Codex/Vercel browser automation',
-      safetyCeiling: 'L4',
-      allowedModes: ['prompt-only', 'research-first'],
-      preferredTasks: ['UI smoke tests', 'visual verification', 'public web research'],
-      forbidden: [...commonForbidden, 'No auth bypass.', 'No private scraping.'],
-      validationCommands: ['Capture URL and visible result', 'Do not submit forms without explicit approval'],
-      bridgeAware: true,
-      lastTraceHint: 'Attach browser smoke result to PR/report.',
-    },
-  ];
+  const runtimes: AgentRuntime[] = loadRuntimeConfigs().map(c => c.id === 'hermes' ? {
+    id: c.id, name: c.name, kind: c.kind,
+    status: runtimeStatus(path.join(USER_HOME, 'AppData', 'Local', 'hermes', 'hermes-agent')),
+    pathHint: c.pathHint,
+    safetyCeiling: safety.allowShell ? 'L3' : 'L1',
+    allowedModes: shellModes,
+    preferredTasks: c.preferredTasks,
+    forbidden: commonForbidden,
+    validationCommands: c.validationCommands,
+    bridgeAware: c.bridgeAware,
+    lastTraceHint: c.lastTraceHint,
+  } : {
+    id: c.id, name: c.name, kind: c.kind,
+    status: c.status ?? 'unknown',
+    pathHint: c.pathHint,
+    safetyCeiling: c.safetyCeiling ?? 'L1',
+    allowedModes: c.allowedModes ?? [],
+    preferredTasks: c.preferredTasks,
+    forbidden: c.forbiddenExtra ? [...commonForbidden, ...c.forbiddenExtra] : commonForbidden,
+    validationCommands: c.validationCommands,
+    bridgeAware: c.bridgeAware,
+    lastTraceHint: c.lastTraceHint,
+  });
 
   const lower = task.toLowerCase();
   const recommendedRuntimeId = /ui|visual|browser|screenshot|vercel/.test(lower)

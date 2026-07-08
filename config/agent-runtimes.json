@@ -1,0 +1,65 @@
+[
+  {
+    "id": "hermes",
+    "name": "Hermes",
+    "kind": "local",
+    "pathHint": "C:/Users/manaz/AppData/Local/hermes/hermes-agent",
+    "preferredTasks": ["local memory", "vault context", "MAZos operation", "long handoffs"],
+    "validationCommands": ["Use Task Gate first", "Quote exact verification output"],
+    "bridgeAware": true,
+    "lastTraceHint": "GET /api/mazos/flight-recorder?product=MAZos"
+  },
+  {
+    "id": "codex",
+    "name": "Codex",
+    "kind": "cli",
+    "status": "configured",
+    "pathHint": "Codex desktop / CLI session",
+    "safetyCeiling": "L3",
+    "allowedModes": ["prompt-only", "build/lint", "research-first"],
+    "preferredTasks": ["repo implementation", "type fixes", "GitHub PR workflow", "local verification"],
+    "validationCommands": ["npm run lint", "npm run build", "git status --short"],
+    "bridgeAware": false,
+    "lastTraceHint": "Use MAZos Flight Recorder for logged runs and gates."
+  },
+  {
+    "id": "claude-code",
+    "name": "Claude Code",
+    "kind": "cli",
+    "status": "configured",
+    "pathHint": "Claude Code / Hermes-compatible local agent",
+    "safetyCeiling": "L3",
+    "allowedModes": ["prompt-only", "build/lint", "research-first"],
+    "preferredTasks": ["large refactors", "product design", "multi-file UI work", "documentation"],
+    "validationCommands": ["Run repo-specific lint/build", "Open PR from agents/* branch"],
+    "bridgeAware": false,
+    "lastTraceHint": "Ask agent to paste final handoff into MAZos session note."
+  },
+  {
+    "id": "opencode",
+    "name": "OpenCode",
+    "kind": "cli",
+    "status": "configured",
+    "pathHint": "OpenCode local CLI",
+    "safetyCeiling": "L2",
+    "allowedModes": ["prompt-only", "research-first"],
+    "preferredTasks": ["inspection", "small code edits", "alternate review"],
+    "validationCommands": ["Prefer read-only inspect first", "Escalate to Task Gate for writes"],
+    "bridgeAware": false,
+    "lastTraceHint": "No native trace yet; create a mission plan before use."
+  },
+  {
+    "id": "browser-agent",
+    "name": "Browser Agent",
+    "kind": "browser",
+    "status": "configured",
+    "pathHint": "Codex/Vercel browser automation",
+    "safetyCeiling": "L4",
+    "allowedModes": ["prompt-only", "research-first"],
+    "preferredTasks": ["UI smoke tests", "visual verification", "public web research"],
+    "forbiddenExtra": ["No auth bypass.", "No private scraping."],
+    "validationCommands": ["Capture URL and visible result", "Do not submit forms without explicit approval"],
+    "bridgeAware": true,
+    "lastTraceHint": "Attach browser smoke result to PR/report."
+  }
+]

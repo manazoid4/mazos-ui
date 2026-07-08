@@ -30,6 +30,7 @@ type ContextMap = { generatedAt:string; project:string; repoPath:string|null; bl
 type ServerBrief = { generatedAt:string; headline:string; shipNext:string; needsYou:string[]; avoidToday:string; safestNextPrompt:string; evidence:string[]; markdown:string; degraded:boolean; warnings:string[]; aiInbox?:{newCount:number;topSkillCandidate:string|null;topLoopCandidate:string|null;recommendedAction:string}; trust?:{untrustedCount:number;topRiskySkill:string|null;topLowValueItem:string|null;cleanupAction:string} };
 type AgentRuntime = { id:string; name:string; kind:string; status:string; pathHint:string; safetyCeiling:SafetyLevel; allowedModes:string[]; preferredTasks:string[]; forbidden:string[]; validationCommands:string[]; bridgeAware:boolean; lastTraceHint:string };
 type AgentRuntimeRegistry = { generatedAt:string; safety:{safeMode:boolean; allowShell:boolean; allowPush:boolean; allowDestructive:boolean}; recommendedRuntimeId:string; recommendationReason:string; runtimes:AgentRuntime[] };
+type AgentPersona = { id:string; name:string; description:string; tools:string[]; model:string };
 type AiSourceItem = { id:string; rawInput:string; url:string; sourcePlatform:string; sourceType:string; title:string; summary:string; notes:string; tags:string[]; status:string; usefulnessScore:number; trustScore:number; suggestedAction:string; createdAt:string; updatedAt:string };
 type AiInboxSummary = { total:number; countsByStatus:Record<string,number>; countsByPlatform:Record<string,number>; latest:AiSourceItem[]; topByUsefulness:AiSourceItem[]; topSkillCandidate:AiSourceItem|null; topLoopCandidate:AiSourceItem|null; recommendedNextAction:string };
 type SkillSpec = { id:string; name:string; sourceItemIds:string[]; sourceUrls:string[]; category:string; whatItDoes:string; whenToUse:string; inputsNeeded:string[]; expectedOutput:string; requiredTools:string[]; safetyRisks:string[]; setupNotes:string; testPlan:string[]; rejectionReasons:string[]; status:string; usefulnessScore:number; trustScore:number; riskLevel:string; createdAt:string; updatedAt:string };
@@ -93,6 +94,7 @@ export default function Page() {
   const [spine,setSpine]=useState<SpineData|null>(null);
   const [feed,setFeed]=useState<FeedData|null>(null);
   const [brief,setBrief]=useState<ServerBrief|null>(null), [contextMap,setContextMap]=useState<ContextMap|null>(null), [runtimeRegistry,setRuntimeRegistry]=useState<AgentRuntimeRegistry|null>(null);
+  const [personas,setPersonas]=useState<AgentPersona[]>([]);
   const [aiEngine,setAiEngine]=useState<AiEngineData|null>(null);
   const [aiPaste,setAiPaste]=useState('');
   const [paletteOpen,setPaletteOpen]=useState(false);
@@ -110,6 +112,7 @@ export default function Page() {
   async function loadAiEngine(){ try{ const [inbox,skills,packs,reaper]=await Promise.all([mazosFetch('/api/mazos/ai-source-inbox').then(r=>r.json()),mazosFetch('/api/mazos/skill-factory').then(r=>r.json()),mazosFetch('/api/mazos/loop-store').then(r=>r.json()),mazosFetch('/api/mazos/clutter-reaper').then(r=>r.json())]); setAiEngine({inbox,skills,packs,reaper}); }catch{ setAiEngine(null); } }
   async function loadContextMap(project='MAZos'){ try{ const r=await mazosFetch(`/api/mazos/context-map?project=${encodeURIComponent(project)}`).then(r=>r.json()); if(!r.error) setContextMap(r); }catch{ setContextMap(null); } }
   async function loadRuntimes(task=''){ try{ const qs=task?`?task=${encodeURIComponent(task)}`:''; const r=await mazosFetch(`/api/mazos/agent-runtimes${qs}`).then(r=>r.json()); if(!r.error) setRuntimeRegistry(r); }catch{ setRuntimeRegistry(null); } }
+  async function loadAgents(){ try{ const r=await mazosFetch('/api/mazos/agents').then(r=>r.json()); setPersonas(r.agents||[]); }catch{ setPersonas([]); } }
   async function setFeedState(id:string,state:FeedUserState){ setFeed(f=>f?{...f,items:f.items.map(i=>i.id===id?{...i,userState:state}:i)}:f); await mazosFetch('/api/mazos/feed',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,state})}).catch(()=>undefined); }
   async function loopEvent(loopId:string, type:string, extra:Record<string,string>={}){ const r=await mazosFetch('/api/mazos/loops',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({loopId,type,...extra})}).then(r=>r.json()); if(r.loops) setLoops(r.loops); if(type==='gate') loadDecisions(); }
   async function draftLoop(){ setBusy('loop-factory-draft'); const r=await mazosFetch('/api/mazos/loop-factory',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...loopFactory,action:'draft'})}).then(r=>r.json()); setLoopDraft(r.draft||null); setBusy(''); }
@@ -127,7 +130,7 @@ export default function Page() {
   async function routeTool(){ if(!routerTask.trim())return; setRouterBusy(true); const [r]=await Promise.all([mazosFetch(`/api/mazos/tool-router?task=${encodeURIComponent(routerTask)}`).then(r=>r.json()), loadRuntimes(routerTask)]); setRouterRecs(r.recommendations||[]); setRouterBusy(false); }
   useEffect(()=>{ document.documentElement.dataset.theme='dark'; setTab(normalizeTab(localStorage.getItem('mazos-tab')));
     // Research → Loop Factory handoff: consume a prefill left by /research.
-    try{ const raw=localStorage.getItem('mazos-loopfactory-draft'); if(raw){ localStorage.removeItem('mazos-loopfactory-draft'); const d=JSON.parse(raw); if(d&&typeof d.goal==='string'&&d.goal.trim()){ const pattern=LOOP_PATTERN_OPTIONS.some(([id])=>id===d.pattern)?d.pattern as LoopPatternId:'research-intelligence'; setLoopFactory({goal:d.goal,project:String(d.project||'MAZos'),pattern,sources:String(d.sources||'')}); setTab('WORK'); } } }catch{ localStorage.removeItem('mazos-loopfactory-draft'); } bridgeHealth().then(setBridge); refresh(); loadStatusDeck(); loadLoops(); loadDecisions(); loadShip(); loadSpine(); loadFeed(); loadBrief(); loadAiEngine(); loadContextMap(); loadRuntimes(); loadSys(); const t=setInterval(()=>setClock(new Date().toLocaleTimeString()),1000); const ts=setInterval(loadSys,30_000); return()=>{clearInterval(t);clearInterval(ts);}; },[]);
+    try{ const raw=localStorage.getItem('mazos-loopfactory-draft'); if(raw){ localStorage.removeItem('mazos-loopfactory-draft'); const d=JSON.parse(raw); if(d&&typeof d.goal==='string'&&d.goal.trim()){ const pattern=LOOP_PATTERN_OPTIONS.some(([id])=>id===d.pattern)?d.pattern as LoopPatternId:'research-intelligence'; setLoopFactory({goal:d.goal,project:String(d.project||'MAZos'),pattern,sources:String(d.sources||'')}); setTab('WORK'); } } }catch{ localStorage.removeItem('mazos-loopfactory-draft'); } bridgeHealth().then(setBridge); refresh(); loadStatusDeck(); loadLoops(); loadDecisions(); loadShip(); loadSpine(); loadFeed(); loadBrief(); loadAiEngine(); loadContextMap(); loadRuntimes(); loadAgents(); loadSys(); const t=setInterval(()=>setClock(new Date().toLocaleTimeString()),1000); const ts=setInterval(loadSys,30_000); return()=>{clearInterval(t);clearInterval(ts);}; },[]);
   useEffect(()=>{ localStorage.setItem('mazos-tab',tab); },[tab]);
   useEffect(()=>{ const h=(e:KeyboardEvent)=>{ if((e.ctrlKey&&e.key.toLowerCase()==='k')||(e.key==='/'&&!(e.target as HTMLElement).closest('input,textarea,select'))){ e.preventDefault(); setPaletteOpen(o=>!o); } if(e.key==='Escape') setPaletteOpen(false); }; window.addEventListener('keydown',h); return()=>window.removeEventListener('keydown',h); },[]);
   const summary=useMemo(()=> data ? { existing:data.repos.filter(r=>r.exists).length, dirty:data.repos.filter(r=>r.dirty).length, optionalDown:data.services.filter(s=>!s.online&&s.signal==='not-running').length, critical:data.services.filter(s=>!s.online&&s.signal!=='not-running').length } : null,[data]);
@@ -145,6 +148,7 @@ export default function Page() {
 
     {tab==='NOW'&&<>
       <SpinePanel spine={spine} brief={brief} ship={ship} run={runAction} open={setModal} reload={loadSpine}/>
+      <AgentsPanel registry={runtimeRegistry} personas={personas} repos={data.repos} reload={loadRuntimes} open={setModal}/>
       <StatsStrip spine={spine} ship={ship} repos={data.repos}/>
       <LoopStrip/>
       <RecentShippedStrip ship={ship} repos={data.repos}/>
@@ -161,7 +165,7 @@ export default function Page() {
       <LoopFactoryPanel form={loopFactory} setForm={setLoopFactory} draft={loopDraft} busy={busy} draftLoop={draftLoop} saveLoop={saveLoop} open={setModal}/>
       <Panel title="Loop Engineering Deck" badge={deckBadge(loops)}><div className="loopDeck">{loops.map(l=><LoopCard key={l.def.id} loop={l} event={loopEvent} open={setModal}/>)}</div></Panel>
       <DecisionInbox decisions={decisions} resolve={resolveDecision} add={addDecision} open={setModal}/>
-      <AgentPrepPanel statuses={statusDeck} contextMap={contextMap} reloadContext={()=>loadContextMap('MAZos')} routerTask={routerTask} setRouterTask={setRouterTask} routerRecs={routerRecs} routerBusy={routerBusy} route={routeTool} registry={runtimeRegistry} reloadRuntimes={()=>loadRuntimes(routerTask)} open={setModal}/>
+      <AgentPrepPanel statuses={statusDeck} contextMap={contextMap} reloadContext={()=>loadContextMap('MAZos')} routerTask={routerTask} setRouterTask={setRouterTask} routerRecs={routerRecs} routerBusy={routerBusy} route={routeTool} open={setModal}/>
     </>}
 
     {tab==='INTAKE'&&<section className="split intakeSplit">
@@ -318,16 +322,26 @@ function ContextMapPanel({contextMap,open,reload}:{contextMap:ContextMap|null;op
 function ReceiptDetail({receipt}:{receipt:SourceReceipt}){
   return <div><dl><dt>kind</dt><dd>{receipt.kind}</dd><dt>path/url</dt><dd>{receipt.pathOrUrl}</dd><dt>freshness</dt><dd>{receipt.freshness}</dd><dt>confidence</dt><dd>{receipt.confidence}</dd><dt>read first</dt><dd>{receipt.readFirst?'yes':'no'}</dd><dt>sensitive</dt><dd>{receipt.sensitive?'local/private':'public or non-local'}</dd></dl><p className="muted">Agents should quote this receipt when relying on it, and stop if it contradicts the task.</p></div>;
 }
-function RuntimeSafetyPanel({registry,open,reload}:{registry:AgentRuntimeRegistry|null;open:(m:{title:string;body:React.ReactNode})=>void;reload:()=>void}){
-  if(!registry) return <Panel title="Agent Runtime Safety" badge="loading"><p className="muted">Reading runtime registry and control-panel safety flags.</p></Panel>;
-  const rec=registry.runtimes.find(r=>r.id===registry.recommendedRuntimeId) || registry.runtimes[0];
-  const flags=registry.safety;
-  return <Panel title="Agent Runtime Safety" badge={`recommended: ${rec?.name || 'none'}`}>
-    <div className="safetyConsole">
-      <div className="flagRow"><span className={flags.safeMode?'ok':'bad'}>safe {String(flags.safeMode)}</span><span className={flags.allowShell?'bad':'ok'}>shell {String(flags.allowShell)}</span><span className={flags.allowPush?'bad':'ok'}>push {String(flags.allowPush)}</span><span className={flags.allowDestructive?'bad':'ok'}>destructive {String(flags.allowDestructive)}</span></div>
-      <p className="muted">{registry.recommendationReason}</p>
-      <div className="runtimeList">{registry.runtimes.map(r=><button key={r.id} className={`runtime ${r.id===registry.recommendedRuntimeId?'active':''}`} onClick={()=>open({title:`Runtime · ${r.name}`,body:<RuntimeDetail runtime={r}/>})}><b>{r.name}</b><small>{r.status} · {r.kind} · ceiling {r.safetyCeiling}</small></button>)}</div>
-      <button className="ghost wide" onClick={reload}>Refresh runtime registry</button>
+function AgentsPanel({registry,personas,repos,reload,open}:{registry:AgentRuntimeRegistry|null;personas:AgentPersona[];repos:Repo[];reload:()=>void;open:(m:{title:string;body:React.ReactNode})=>void}){
+  const flags=registry?.safety;
+  const rec=registry?.runtimes.find(r=>r.id===registry.recommendedRuntimeId);
+  const dirtyCount=repos.filter(r=>r.dirty).length;
+  return <Panel title="Agents" badge={`${registry?.runtimes.length||0} runtimes · ${personas.length} personas · ${dirtyCount} repos active`}>
+    <div className="triad">
+      <div>
+        <h3>Runtimes {rec?`· recommended ${rec.name}`:''}</h3>
+        {flags && <div className="flagRow"><span className={flags.safeMode?'ok':'bad'}>safe {String(flags.safeMode)}</span><span className={flags.allowShell?'bad':'ok'}>shell {String(flags.allowShell)}</span><span className={flags.allowPush?'bad':'ok'}>push {String(flags.allowPush)}</span></div>}
+        {registry ? <div className="runtimeList">{registry.runtimes.map(r=><button key={r.id} className={`runtime ${r.id===registry.recommendedRuntimeId?'active':''}`} onClick={()=>open({title:`Runtime · ${r.name}`,body:<RuntimeDetail runtime={r}/>})}><b>{r.name}</b><small>{r.status} · ceiling {r.safetyCeiling}</small></button>)}</div> : <p className="muted">Loading runtime registry…</p>}
+        <button className="ghost wide" onClick={reload}>Refresh runtimes</button>
+      </div>
+      <div>
+        <h3>Hermes personas</h3>
+        <div className="runtimeList">{personas.map(p=><button key={p.id} className="runtime" onClick={()=>open({title:p.name,body:<div><p className="muted">{p.description}</p><dl><dt>model</dt><dd>{p.model}</dd><dt>tools</dt><dd>{p.tools.join(', ')}</dd></dl></div>})}><b>{p.name}</b><small>{p.model}</small></button>)}{personas.length===0&&<p className="muted">Loading personas…</p>}</div>
+      </div>
+      <div>
+        <h3>Repo activity</h3>
+        <div className="runtimeList">{repos.map(r=><span key={r.id} className={`runtime ${r.dirty?'active':''}`}><b>{r.label}</b><small>{r.exists?(r.dirty?`dirty · ${r.unpushedCount} unpushed`:'clean'):'missing'}</small></span>)}</div>
+      </div>
     </div>
   </Panel>;
 }
@@ -384,16 +398,15 @@ function deckBadge(loops:AuditedLoopState[]){
   return `doctor ${avg}/100 avg · ${count('keep')} keep · ${count('revise')} revise · ${count('merge')} merge · ${count('remove')} remove`;
 }
 
-type AgentPrepView='Handoff'|'Context'|'Router'|'Runtime';
-const AGENT_PREP_VIEWS:AgentPrepView[]=['Handoff','Context','Router','Runtime'];
-function AgentPrepPanel({statuses,contextMap,reloadContext,routerTask,setRouterTask,routerRecs,routerBusy,route,registry,reloadRuntimes,open}:{statuses:ProjectStatus[];contextMap:ContextMap|null;reloadContext:()=>void;routerTask:string;setRouterTask:(v:string)=>void;routerRecs:ToolRec[];routerBusy:boolean;route:()=>void;registry:AgentRuntimeRegistry|null;reloadRuntimes:()=>void;open:(m:{title:string;body:React.ReactNode})=>void}){
+type AgentPrepView='Handoff'|'Context'|'Router';
+const AGENT_PREP_VIEWS:AgentPrepView[]=['Handoff','Context','Router'];
+function AgentPrepPanel({statuses,contextMap,reloadContext,routerTask,setRouterTask,routerRecs,routerBusy,route,open}:{statuses:ProjectStatus[];contextMap:ContextMap|null;reloadContext:()=>void;routerTask:string;setRouterTask:(v:string)=>void;routerRecs:ToolRec[];routerBusy:boolean;route:()=>void;open:(m:{title:string;body:React.ReactNode})=>void}){
   const [view,setView]=useState<AgentPrepView>('Handoff');
   return <section className="agentPrep">
     <div className="chips">{AGENT_PREP_VIEWS.map(v=><button key={v} className={`ghost ${view===v?'active':''}`} onClick={()=>setView(v)}>{v}</button>)}</div>
     {view==='Handoff'&&<HandoffPanel statuses={statuses} open={open}/>}
     {view==='Context'&&<ContextMapPanel contextMap={contextMap} open={open} reload={reloadContext}/>}
     {view==='Router'&&<ToolRouterPanel task={routerTask} setTask={setRouterTask} recs={routerRecs} busy={routerBusy} route={route} open={open}/>}
-    {view==='Runtime'&&<RuntimeSafetyPanel registry={registry} open={open} reload={reloadRuntimes}/>}
   </section>;
 }
 

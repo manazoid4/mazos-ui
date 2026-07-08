@@ -1,0 +1,8 @@
+[
+  { "id": "mazos_ui", "label": "MazOS UI", "pathKey": "mazos_ui", "github": "https://github.com/manazoid4/mazos-ui" },
+  { "id": "recall", "label": "Recall", "pathKey": "recall", "github": "" },
+  { "id": "jobfilter", "label": "JobFilter", "pathKey": "jobfilter", "pathKeyAlt": "jobfilter_alt", "github": "" },
+  { "id": "openflowkit", "label": "OpenFlowKit", "pathKey": "openflowkit", "pathKeyAlt": "openflowkit_alt", "github": "" },
+  { "id": "obsidian", "label": "Obsidian Vault", "pathKey": "obsidian", "github": "" },
+  { "id": "flowlens", "label": "FlowLens", "pathKey": "flowlens", "github": "https://github.com/manazoid4/flowlens" }
+]

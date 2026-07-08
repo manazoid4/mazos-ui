@@ -52,3 +52,15 @@
 [submodule "external/agent-sources/openwiki"]
 	path = external/agent-sources/openwiki
 	url = https://github.com/kdsz001/OpenWiki.git
+[submodule "external/agent-sources/the-agency"]
+	path = external/agent-sources/the-agency
+	url = https://github.com/the-agency-ai/the-agency.git
+[submodule "external/agent-sources/the-agency-starter"]
+	path = external/agent-sources/the-agency-starter
+	url = https://github.com/the-agency-ai/the-agency-starter.git
+[submodule "external/agent-sources/the-agency-workshop"]
+	path = external/agent-sources/the-agency-workshop
+	url = https://github.com/the-agency-ai/the-agency-workshop.git
+[submodule "external/agent-sources/this-happened"]
+	path = external/agent-sources/this-happened
+	url = https://github.com/the-agency-ai/this-happened.git

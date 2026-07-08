@@ -43,6 +43,7 @@ export const PATHS = {
   openwiki_app: OPENWIKI_PATHS.app,
   openwiki_db: OPENWIKI_PATHS.db,
   openwiki_source: OPENWIKI_PATHS.source,
+  flowlens: 'C:/Users/manaz/Desktop/flowlens',
 } as const;
 
 export function today() { return new Date().toISOString().slice(0, 10); }

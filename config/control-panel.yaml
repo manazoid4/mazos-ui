@@ -50,3 +50,7 @@ external_sources:
     maxun: "Browser automation and web extraction architecture"
     loop_engineering: "Recurring agent loops with stop conditions, budgets and human gates"
     awesome_n8n_templates: "n8n workflow templates, integration/webhook automation examples, no-code automation patterns"
+    the_agency: "Multi-agent Claude Code dev framework: captain/tech-lead/reviewer agent classes, ISCP, quality gates"
+    the_agency_starter: "Starter/installer variant of TheAgency framework"
+    the_agency_workshop: "AI-augmented dev workshop demo: Claude Code + TheAgency + Valueflow"
+    this_happened: "Issue-reporting and distributed tracing tool with auto state capture"
