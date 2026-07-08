@@ -27,6 +27,10 @@ export const OPENWIKI_PATHS = {
   mcpServer: 'openwiki',
 } as const;
 
+export const HERMES_HOME = 'C:/Users/manaz/AppData/Local/hermes';
+export const HERMES_PROFILES_DIR = `${HERMES_HOME}/profiles`;
+export const HERMES_ACTIVE_PROFILE_FILE = `${HERMES_HOME}/active_profile`;
+
 export const PATHS = {
   mazos_ui: 'C:/Users/manaz/Projects/mazos-ui',
   recall: 'C:/Users/manaz/Projects/recall',

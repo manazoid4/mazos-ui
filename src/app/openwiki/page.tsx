@@ -92,6 +92,7 @@ export default function OpenWikiPage() {
       <button className="tabBtn" onClick={() => { location.href = '/'; }}>COCKPIT</button>
       <button className="tabBtn" onClick={() => { location.href = '/sessions'; }}>TASK GATE</button>
       <button className="tabBtn active">OPENWIKI</button>
+      <button className="tabBtn" onClick={() => { location.href = '/hermes'; }}>HERMES</button>
       <button className="tabBtn paletteHint" disabled={busy} onClick={load}>{busy ? 'REFRESHING' : 'REFRESH'}</button>
     </nav>
 
