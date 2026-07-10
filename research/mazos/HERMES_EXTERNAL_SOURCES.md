@@ -26,6 +26,10 @@ MAZos Git submodule root:
 | Maxun | `C:\Users\manaz\.hermes\external-sources\maxun` | `external/agent-sources/maxun` | `ca458fed` | Browser automation, web data extraction, scraping workflow architecture. Use only within legal/ToS-safe boundaries. |
 | Loop Engineering | `C:\Users\manaz\.hermes\external-sources\loop-engineering` | `external/agent-sources/loop-engineering` | `b623b5f` | Designing safe recurring agent loops, triage loops, PR babysitters, CI sweepers, loop audits, cost checks, and stop conditions. |
 | Awesome n8n Templates | `C:\Users\manaz\.hermes\external-sources\awesome-n8n-templates` | `external/agent-sources/awesome-n8n-templates` | `2d78bc6` | n8n workflow templates, webhook/integration automation examples, no-code automation patterns, and workflow blueprint inspiration. |
+| TheAgency | `C:\Users\manaz\.hermes\external-sources\the-agency` | `external/agent-sources/the-agency` | n/a | Multi-agent Claude Code dev framework: captain/tech-lead/reviewer agent classes, ISCP, quality gates. |
+| TheAgency Starter | `C:\Users\manaz\.hermes\external-sources\the-agency-starter` | `external/agent-sources/the-agency-starter` | n/a | Starter/installer variant of TheAgency framework. |
+| TheAgency Workshop | `C:\Users\manaz\.hermes\external-sources\the-agency-workshop` | `external/agent-sources/the-agency-workshop` | n/a | AI-augmented dev workshop demo: Claude Code + TheAgency + Valueflow. |
+| This Happened | `C:\Users\manaz\.hermes\external-sources\this-happened` | `external/agent-sources/this-happened` | n/a | Issue-reporting and distributed tracing tool with auto state capture. |
 
 Note: the MAZos `awesome-n8n-templates` submodule uses a sparse checkout because the full repository contains Windows long-path template filenames. The full local clone is available for Hermes at `C:\Users\manaz\.hermes\external-sources\awesome-n8n-templates`.
 
