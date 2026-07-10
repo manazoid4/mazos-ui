@@ -150,7 +150,7 @@ export default function Page() {
       <SpinePanel spine={spine} brief={brief} ship={ship} run={runAction} open={setModal} reload={loadSpine}/>
       <AgentsPanel registry={runtimeRegistry} personas={personas} repos={data.repos} reload={loadRuntimes} open={setModal}/>
       <StatsStrip spine={spine} ship={ship} repos={data.repos}/>
-      <LoopStrip/>
+      <LoopStrip loops={loops} open={setModal}/>
       <RecentShippedStrip ship={ship} repos={data.repos}/>
     </>}
 
@@ -608,12 +608,14 @@ function StatsStrip({spine,ship,repos}:{spine:SpineData|null;ship:ShipLogData|nu
   </Panel>;
 }
 
-function LoopStrip(){
-  return <Panel title="Operating Loop" badge="Evidence → Rank → Ship">
-    <div className="massMoves loopMoves">
-      <div><b>Evidence</b><span>Repo scan, ship log, stale radar, and open decisions are read fresh from disk and git — no manual status updates.</span></div>
-      <div><b>Rank</b><span>The Shipping Spine scores every product on blocker state, evidence strength, and money weight, then sorts worst-blocked-first.</span></div>
-      <div><b>Ship</b><span>Done means the top row&apos;s done-criteria are met and verify commands pass — the handoff prompt carries both to the owner agent.</span></div>
+function LoopStrip({loops,open}:{loops:AuditedLoopState[];open:(m:{title:string;body:React.ReactNode})=>void}){
+  const ready = loops.filter(l => l.status === 'running' || l.status === 'gated');
+  const idle  = loops.filter(l => l.status !== 'running' && l.status !== 'gated');
+  return <Panel title="Loops" badge={`${loops.length} loops · click to copy runner prompt`}>
+    {loops.length === 0 && <p className="muted">No loops in the deck. Create one in the Loop Factory (WORK tab) or load from config/loops.json.</p>}
+    <div className="chips">
+      {ready.map(l => <button key={l.def.id} className="primary" style={{width:'auto'}} onClick={()=>{const p=buildLoopPrompt(l.def); navigator.clipboard.writeText(p); open({title:`Loop prompt · ${l.def.name}`,body:<CopyBlock text={p}/>});}} title={l.def.goal}><b>{l.def.name}</b><small> {l.status} · {l.iteration}/{l.def.maxIterations}</small></button>)}
+      {idle.map(l => <button key={l.def.id} className="ghost" onClick={()=>{const p=buildLoopPrompt(l.def); navigator.clipboard.writeText(p); open({title:`Loop prompt · ${l.def.name}`,body:<CopyBlock text={p}/>});}} title={l.def.goal}><b>{l.def.name}</b><small> {l.status}</small></button>)}
     </div>
   </Panel>;
 }
