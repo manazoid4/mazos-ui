@@ -34,16 +34,16 @@ export const HERMES_ACTIVE_PROFILE_FILE = `${HERMES_HOME}/active_profile`;
 export const PATHS = {
   mazos_ui: 'C:/Users/manaz/Projects/mazos-ui',
   recall: 'C:/Users/manaz/Projects/recall',
-  jobfilter: 'C:/Users/manaz/Desktop/JobFilterV1',
-  jobfilter_alt: 'C:/Users/manaz/Projects/JobFilterV1',
-  openflowkit: 'C:/Users/manaz/Projects/openflowkit',
-  openflowkit_alt: 'C:/Users/manaz/Desktop/openflowkit',
+  jobfilter: 'C:/Users/manaz/JobFilterV1',
+  jobfilter_alt: 'C:/Users/manaz/Desktop/JobFilterV1',
+  openflowkit: 'C:/Users/manaz/openflowkit',
+  openflowkit_alt: 'C:/Users/manaz/Projects/openflowkit',
   obsidian: 'C:/Users/manaz/Desktop/Obsidian Main Vault',
   jobfilter_vault: 'C:/Users/manaz/JobFilter-Obsidian-Vault',
   openwiki_app: OPENWIKI_PATHS.app,
   openwiki_db: OPENWIKI_PATHS.db,
   openwiki_source: OPENWIKI_PATHS.source,
-  flowlens: 'C:/Users/manaz/Desktop/flowlens',
+  flowlens: 'C:/Users/manaz/flowlens',
 } as const;
 
 export function today() { return new Date().toISOString().slice(0, 10); }

@@ -2,6 +2,23 @@
 
 All notable changes to MAZos are documented here, newest first.
 
+## 2026-07-18 — v2 Loop Cockpit rebuild
+
+### Changed
+- **One screen, no tabs**: Ship Next (spine) → Loop Deck → Decisions → Shipped. `/research`, `/sessions`, `/openwiki` pages deleted; `/hermes` unchanged.
+- **The Loop primitive**: every loop = goal + repo + required verify action + PLAN/BUILD prompt split + machine receipts (verify exit code, commit range, diff stat, criteria tamper hash). Completion refused without a passing receipt and all criteria passing.
+- **Machine receipts replace click telemetry**: "Log receipt" runs the registered verify command and inspects git — you cannot click your way to a completed loop. Trust badge at ≥5 passing receipts; circuit breaker on repeated identical failure; 3-day zombie auto-stop.
+- **New Loop drawer** gated by task scoring; Ship Next rows prefill it (props, not the old unread localStorage handoff).
+
+### Fixed
+- **runCommand could never run npm on Windows** (spawn without shell → npm.cmd ENOENT). Wrapped in `cmd /c`; per-repo `verify_*` actions now actually execute.
+- Repo paths corrected (JobFilter → `C:/Users/manaz/JobFilterV1`, openflowkit → `C:/Users/manaz/openflowkit`); FlowLens cloned locally and given a playbook so the revenue product finally ranks in the spine.
+- Zombie daily_triage loop stopped at the event-log layer.
+- Bridge CORS locked to an origin allowlist (was `*`); startup script prefers the production server when a build exists.
+
+### Removed
+- ~6,300 LOC: feed, morning-brief, flight-recorder, clutter-reaper, agent-runtimes, ai-source-inbox, ingest, skill-factory, loop-store, trust, mass-competitors, competitor-radar, research surface, remote/email routes, openwiki page, sessions page (task scoring lives on as the loop gate), system strip, ops radar orbs, Loop Doctor, 11-pattern picker, `.ralph/`, leaked remote-intents data file (rotate the key).
+
 ## 2026-07-08
 
 ### New Features

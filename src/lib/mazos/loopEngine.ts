@@ -8,11 +8,13 @@ import { forbiddenFor } from './handoff';
 
 export type LoopAgent = 'Hermes' | 'Codex' | 'Claude';
 
+export type LoopAutonomy = 'suggest' | 'diff' | 'branch';
+
 export type LoopDef = {
   id: string;
   name: string;
   goal: string;
-  promptTemplate: string;      // the task repeated every iteration
+  promptTemplate: string;      // the task repeated every iteration (BUILD pass)
   successCondition: string;    // completion promise — stop when true
   maxIterations: number;
   budgetMinutes: number;
@@ -20,6 +22,11 @@ export type LoopDef = {
   humanGates: string[];        // actions that must stop and ask
   safetyCeiling: SafetyLevel;
   agent: LoopAgent;
+  // v2 loop-cockpit fields (optional so legacy custom loops keep loading)
+  repo?: string;               // PATHS key of the target repo — where .loops/<id>/ lives
+  verifyActionIds?: string[];  // registered commandRegistry actions; the mechanical gate
+  autonomy?: LoopAutonomy;     // ceiling: no verify action ⇒ permanently 'suggest'
+  promptVersion?: number;      // bump on every rule added after a misbehavior
 };
 
 export type LoopEventType = 'start' | 'iteration' | 'complete' | 'stop' | 'gate';
@@ -35,7 +42,15 @@ export type LoopState = {
   budgetUsedMinutes: number;
   lastEvent: LoopEvent | null;
   stopReason: LoopStopReason | null;
+  // v2: derived from machine receipts — the "march of nines" counters
+  successRate: number | null;  // passes / last N run receipts
+  trusted: boolean;            // ≥0.8 over ≥5 receipts
+  circuitOpen: boolean;        // same failure repeated ≥ noProgressStop times
+  receiptCount: number;
 };
+
+// Minimal shape foldLoopState needs from a machine receipt (full type in loopReceipts).
+export type ReceiptSignal = { loopId: string; at: string; passed: boolean; failureKey: string | null };
 
 export const LOOP_TEMPLATES: LoopDef[] = [
   {
@@ -45,6 +60,7 @@ export const LOOP_TEMPLATES: LoopDef[] = [
     successCondition: 'Triage report delivered with 3 priorities, blocker, one next action, evidence paths.',
     maxIterations: 1, budgetMinutes: 15, noProgressStop: 1,
     humanGates: ['Editing any file', 'Anything beyond reading files and git status'],
+    repo: 'mazos_ui', autonomy: 'suggest', promptVersion: 2,
   },
   {
     id: 'pr_babysitter', name: 'PR Babysitter', agent: 'Codex', safetyCeiling: 'L3',
@@ -61,26 +77,38 @@ export const LOOP_TEMPLATES: LoopDef[] = [
     successCondition: 'Build exits 0.',
     maxIterations: 5, budgetMinutes: 30, noProgressStop: 2,
     humanGates: ['Deleting files', 'Changing dependencies or lockfiles', 'Architectural refactors'],
-  },
-  {
-    id: 'intake_drainer', name: 'Intake Queue Drainer', agent: 'Hermes', safetyCeiling: 'L2',
-    goal: 'Process ingest-queue.jsonl until empty.',
-    promptTemplate: 'Read data/mazos/ingest-queue.jsonl. Process the oldest unprocessed source into Recall/Obsidian, preserving tags, notes, and source URL. One source per iteration. Report: source processed, where it was filed, failures.',
-    successCondition: 'Queue empty: every entry processed or explicitly parked with a reason.',
-    maxIterations: 10, budgetMinutes: 45, noProgressStop: 2,
-    humanGates: ['Any source requiring login/auth', 'Any ToS-restricted scraping', 'Paid API calls'],
-  },
-  {
-    id: 'ship_log_updater', name: 'Ship Log Updater', agent: 'Hermes', safetyCeiling: 'L2',
-    goal: 'Collect what shipped across repos into the ship log.',
-    promptTemplate: 'Read git log for the last 7 days in each priority repo. Group commits per day per project into a short "what shipped" markdown update. Write it to the ship log and paste it.',
-    successCondition: 'Ship log written covering all priority repos for the last 7 days.',
-    maxIterations: 2, budgetMinutes: 20, noProgressStop: 1,
-    humanGates: ['Publishing anywhere external (GitHub release, newsletter, social)'],
+    repo: 'mazos_ui', verifyActionIds: ['verify_mazos'], autonomy: 'diff', promptVersion: 2,
   },
 ];
+// v1 templates intake_drainer and ship_log_updater are gone: the intake queue
+// never existed, and the Shipped strip computes the ship log from git directly.
 
-// Ralph-style runner prompt: same task every iteration + completion promise + hard stops.
+// PLAN pass (Ralph: one prompt never both decides and does): gap analysis only,
+// writes .loops/<id>/plan.md in the target repo, no commits.
+export function buildPlanPrompt(def: LoopDef): string {
+  const spec = SAFETY_LEVELS[def.safetyCeiling];
+  return [
+    `${def.agent}: PLAN pass for loop "${def.name}" (v${def.promptVersion ?? 1}). Analysis only — no code changes, no commits.`,
+    ``,
+    `GOAL: ${def.goal}`,
+    `SAFETY CEILING: ${spec.level} ${spec.label} — ${spec.meaning}`,
+    ``,
+    `1. Read .loops/${def.id}/plan.md, .loops/${def.id}/criteria.json, and .loops/${def.id}/progress.md if they exist.`,
+    `2. Compare the goal and criteria against the actual current state of the repo. Do not assume something is unimplemented — check.`,
+    `3. Rewrite .loops/${def.id}/plan.md as a prioritized checklist of small, one-iteration items. Each item must be objectively checkable.`,
+    `4. Do NOT edit criteria.json descriptions or remove items — flipping "passes" happens only via verified build passes.`,
+    ``,
+    `HUMAN GATES (stop and ask — file in the MAZos Decision strip):`,
+    ...def.humanGates.map(g => `  - ${g}`),
+    ``,
+    `FORBIDDEN:`,
+    `  - Any commit, file edit outside .loops/${def.id}/, install, or config change.`,
+    ...forbiddenFor(def.safetyCeiling).map(f => `  - ${f}`),
+  ].join('\n');
+}
+
+// BUILD pass: exactly ONE plan item, implement, verify, commit. Ralph-style
+// runner prompt: same task every iteration + completion promise + hard stops.
 export function buildLoopPrompt(def: LoopDef): string {
   const spec = SAFETY_LEVELS[def.safetyCeiling];
   return [
@@ -92,6 +120,14 @@ export function buildLoopPrompt(def: LoopDef): string {
     ``,
     `TASK (repeat verbatim each iteration):`,
     def.promptTemplate,
+    ...(def.repo ? [
+      ``,
+      `ITERATION DISCIPLINE:`,
+      `  - Pick exactly ONE unchecked item from .loops/${def.id}/plan.md. One item per iteration, never more.`,
+      `  - Implement it with the smallest possible diff, run the verify command${(def.verifyActionIds?.length ?? 0) > 1 ? 's' : ''} (${def.verifyActionIds?.join(', ') || 'none registered'}), and commit with a descriptive message.`,
+      `  - Append one line to .loops/${def.id}/progress.md: which item, what changed, verify result.`,
+      `  - NEVER edit .loops/${def.id}/criteria.json descriptions or remove items. Tampering renders the iteration failed.`,
+    ] : []),
     ``,
     `COMPLETION PROMISE (stop with success only when true):`,
     `  ${def.successCondition}`,
@@ -111,8 +147,12 @@ export function buildLoopPrompt(def: LoopDef): string {
   ].join('\n');
 }
 
-// Fold the event log into per-loop state. Last start resets the iteration counter.
-export function foldLoopState(defs: LoopDef[], events: LoopEvent[]): LoopState[] {
+// Fold the event log + machine receipts into per-loop state. Last start resets
+// the iteration counter. Receipts drive the trust counters; a "running" loop
+// with zero receipts for >3 days is a zombie and gets auto-stopped in the view.
+const ZOMBIE_DAYS = 3;
+const TRUST_WINDOW = 10;
+export function foldLoopState(defs: LoopDef[], events: LoopEvent[], receipts: ReceiptSignal[] = []): LoopState[] {
   return defs.map(def => {
     const evts = events.filter(e => e.loopId === def.id);
     let status: LoopStatus = 'idle', iteration = 0, startedAt: string | null = null, stopReason: LoopStopReason | null = null;
@@ -124,8 +164,27 @@ export function foldLoopState(defs: LoopDef[], events: LoopEvent[]): LoopState[]
       else if (e.type === 'stop') { status = 'stopped'; stopReason = e.reason || 'manual'; }
     }
     const lastEvent = evts[evts.length - 1] || null;
+
+    const mine = receipts.filter(r => r.loopId === def.id);
+    const window = mine.slice(-TRUST_WINDOW);
+    const successRate = window.length ? window.filter(r => r.passed).length / window.length : null;
+    const trusted = mine.length >= 5 && successRate !== null && successRate >= 0.8;
+    let sameFailure = 0;
+    for (let i = mine.length - 1; i >= 0; i--) {
+      const r = mine[i];
+      if (r.passed || !r.failureKey) break;
+      if (sameFailure === 0 || r.failureKey === mine[mine.length - 1].failureKey) sameFailure++;
+      else break;
+    }
+    const circuitOpen = sameFailure >= Math.max(2, def.noProgressStop);
+
+    if ((status === 'running' || status === 'gated') && mine.length === 0 && startedAt
+      && Date.now() - Date.parse(startedAt) > ZOMBIE_DAYS * 864e5) {
+      status = 'stopped'; stopReason = 'no-progress';
+    }
+
     const end = status === 'running' || status === 'gated' ? Date.now() : lastEvent ? Date.parse(lastEvent.at) : 0;
     const budgetUsedMinutes = startedAt ? Math.max(0, Math.round((end - Date.parse(startedAt)) / 60_000)) : 0;
-    return { def, status, iteration, startedAt, budgetUsedMinutes, lastEvent, stopReason };
+    return { def, status, iteration, startedAt, budgetUsedMinutes, lastEvent, stopReason, successRate, trusted, circuitOpen, receiptCount: mine.length };
   });
 }

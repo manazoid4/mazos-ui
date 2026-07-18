@@ -1,43 +1,31 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { customLoopId, generateLoopDraft, scoreLoopReadiness } from '../src/lib/mazos/loopFactory';
+import { customLoopId, generateLoopDraft } from '../src/lib/mazos/loopFactory';
 
-test('generates a ready competitor intelligence loop from a plain-English goal', () => {
+test('a loop with a verify action and real repo passes the gate', () => {
   const draft = generateLoopDraft({
-    goal: 'Research JobFilter competitors weekly and turn what works into product moves',
-    project: 'JobFilter',
-    pattern: 'auto',
-    sources: ['https://example.com/competitor', 'intake queue'],
+    goal: 'Ship one lead-to-paid conversion fix on /find-jobs and verify with build',
+    repo: 'mazos_ui',
+    verifyActionId: 'verify_mazos',
+    agent: 'Claude',
   });
-
-  assert.equal(draft.pattern, 'research-intelligence');
-  assert.equal(draft.def.agent, 'Hermes');
-  assert.equal(draft.def.safetyCeiling, 'L1');
-  assert.match(draft.def.name, /Competitor Intelligence/i);
-  assert.match(draft.def.promptTemplate, /ideas to steal/i);
-  assert.match(draft.def.successCondition, /ranked product move/i);
-  assert.ok(draft.def.humanGates.some((gate) => gate.toLowerCase().includes('auth')));
-  assert.ok(draft.evidenceRequired.some((item) => item.toLowerCase().includes('source')));
-  assert.equal(draft.readiness, 'ready');
-  assert.ok(draft.readinessScore >= 80);
+  assert.equal(draft.def.repo, 'mazos_ui');
+  assert.deepEqual(draft.def.verifyActionIds, ['verify_mazos']);
+  assert.equal(draft.def.autonomy, 'branch');
+  assert.match(draft.def.promptTemplate, /exactly ONE unchecked item/);
+  assert.equal(draft.gate.blockers.length, 0);
 });
 
-test('scores vague loops as needing review', () => {
-  const score = scoreLoopReadiness({
-    goal: 'Make things better',
-    sources: [],
-    successCondition: '',
-    humanGates: [],
-    evidenceRequired: [],
-    maxIterations: 12,
-    budgetMinutes: 180,
-    safetyCeiling: 'L3',
-    pattern: 'research-intelligence',
-  });
+test('no verify action blocks the gate and locks autonomy to suggest', () => {
+  const draft = generateLoopDraft({ goal: 'Make things better somehow', repo: 'mazos_ui' });
+  assert.equal(draft.def.autonomy, 'suggest');
+  assert.equal(draft.gate.approved, false);
+  assert.ok(draft.gate.blockers.some(b => b.includes('verify action')));
+});
 
-  assert.equal(score.readiness, 'unsafe');
-  assert.ok(score.score < 50);
-  assert.ok(score.warnings.length >= 4);
+test('unknown repo key blocks the gate', () => {
+  const draft = generateLoopDraft({ goal: 'Fix the thing', repo: 'nonexistent_repo', verifyActionId: 'verify_mazos' });
+  assert.ok(draft.gate.blockers.some(b => b.includes('does not resolve')));
 });
 
 test('customLoopId is stable and namespaced', () => {
