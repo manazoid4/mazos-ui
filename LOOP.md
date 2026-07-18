@@ -1,77 +1,25 @@
-# MAZos Loop Engineering
+# MAZos Loop Engineering — v2
 
-## Operating thesis
-MAZos loops are not “keep agents busy”. They are a morning cockpit: read repo + vault state, surface the highest-leverage commercial next action, stop.
+One source of truth: the in-app Loop Deck at `http://127.0.0.1:3046`. This file only records doctrine; loop state lives in `data/mazos/loop-runs.jsonl` + `loop-receipts.jsonl` and per-repo `.loops/<id>/` directories — never here.
 
-## Active loops
+## Doctrine (the 15 principles, short form)
 
-| Loop | Cadence | Level | Status | Scope |
-|---|---:|---|---|---|
-| MAZos Daily Triage | manual / daily | L1 report-only | active | MAZos, Recall, JobFilter, Hermes/vault state |
+1. Verification is the bottleneck — every loop has a registered verify action or it cannot be saved.
+2. Short leash — receipts flag diffs >300 changed lines.
+3. Autonomy is earned per loop (suggest → diff → branch), ceiling set by verifier strength. Never auto-merge.
+4. March of nines — ★ trusted only after ≥5 passing machine receipts.
+5. One plan item per iteration.
+6. Fresh context each pass; `.loops/<id>/` files are the memory.
+7. Plan/build split: two prompts, one loop.
+8. Backpressure: verify runs mechanically inside receipt capture; a failing verify can never produce a pass receipt.
+9. criteria.json is tamper-checked by hash; edits render the iteration failed.
+10. Init once (scaffold on save), iterate after.
+11. No receipt = the iteration didn't happen.
+12. Hard stops: max iterations, no-progress, circuit breaker on repeated identical failure, 3-day zombie auto-stop.
+13. The prompt is versioned config — add a rule after every misbehavior, bump promptVersion.
+14. Only objectively checkable goals become loops; open-ended goals decompose first.
+15. Human stays accountable: specs in, diffs + receipts out.
 
-## Goal
-Give Maz a prioritized, actionable picture of what needs attention today across MAZos/Recall/JobFilter, with evidence from local repo + Obsidian vault.
+## Dogfood gate (acceptance test for v2)
 
-## Non-goals
-- No auto-fixes in week 1.
-- No auto-commit/push.
-- No deploys, payments, credential/account actions, scraping, or external writes.
-- No broad vault/repo loading.
-- No architecture invention unless a current blocker demands it.
-
-## Watched sources
-- Repo: `C:/Users/manaz/Projects/mazos-ui`
-- Vault: `C:/Users/manaz/Desktop/Obsidian Main Vault`
-- Read first: `wiki/hot.md`, `wiki/index.md`, `03-MEMORY/PROJECT_INDEX.md`, `03-MEMORY/CURRENT_TASKS.md`, `06-SYSTEM/HERMES_RULES.md`
-- Project refs: `02-PROJECTS/MazOS/CURRENT.md`, `02-PROJECTS/Recall/CURRENT.md`, `02-PROJECTS/JobFilter/CURRENT.md`
-- Loop state: `STATE.md`
-- Run log: `loop-run-log.md`
-- Budget: `loop-budget.md`
-
-## Run prompt
-```text
-Run MAZos Daily Triage.
-
-Rules:
-1. Read STATE.md, LOOP.md, loop-budget.md.
-2. Read targeted vault context only: hot/index, PROJECT_INDEX, CURRENT_TASKS, HERMES_RULES, then relevant project CURRENT notes.
-3. Inspect repo state enough to know current blockers: git status, package scripts, build/lint status only if budget allows.
-4. Produce:
-   - High Priority: max 3 items
-   - Watch: max 5 items
-   - Noise/Ignored
-   - One recommended next action
-   - Evidence paths read
-5. Update STATE.md Last run, High Priority, Watch, Recent Noise, Post-run critique.
-6. Append one entry to loop-run-log.md.
-7. Do not edit app code, commit, push, deploy, email, scrape, or touch credentials.
-8. Escalate anything involving accounts, scraping, credentials, deployments, payments, or destructive changes.
-```
-
-## Human gates
-Human approval required for:
-- code edits beyond docs/state
-- commits/pushes/PRs
-- deploy/runtime process changes
-- credentials/accounts/payments
-- external scraping or automation
-- deleting/renaming files
-- enabling L2 assisted fixes
-
-## Stop conditions
-Stop after the first true condition:
-- STATE.md updated with today’s triage
-- 3 high-priority items found
-- any human-gated action needed
-- 30 minutes elapsed
-- 60k estimated tokens used
-- same blocker appears for 3 runs without new evidence
-
-## Graduation path
-- Week 1: L1 report-only, tune noise.
-- After 5 useful runs: allow L2 for docs/state-only cleanup.
-- After 10 useful runs: allow isolated worktree fixes, verifier separate from implementer.
-- Never allow auto-merge.
-
-## Success metric
-A useful run gives Maz one obvious next action that improves Recall, JobFilter, or MAZos commercial leverage.
+Run **Daily Triage** for real: 5 iterations over 5 days with machine receipts in `loop-receipts.jsonl`. If receipts don't accumulate, the design failed and gets another chop.

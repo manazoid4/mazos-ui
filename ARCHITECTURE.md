@@ -1,28 +1,35 @@
-# ARCHITECTURE
+# ARCHITECTURE — MAZos v2 Loop Cockpit
 
-## System Components
+## Shape
 
-1. **React UI (Frontend)**
-   - Port: 9999
-   - Role: Read-only visualization and command dispatch.
-   - Mechanism: Periodically fetches YAML state files.
+Next.js app, one page (`/`), one secondary page (`/hermes`), 14 API routes, ~22 lib modules. Local-first on Windows; hosted mirror on Vercel reads local data through a 3047→3046 bridge.
 
-2. **YAML Configuration (State Storage)**
-   - Role: Source of truth for system state and skill availability.
-   - Format: Strict YAML. Defines skill endpoints, parameters, and metadata.
-
-3. **Hermes Skills (Backend execution)**
-   - Role: Perform the actual work.
-   - Mechanism: Expose capabilities that are mapped into the YAML configs. The UI reads these configs to understand what actions are available and their required parameters.
-
-## Data Flow
 ```
-[ Hermes Skills ] <--(writes state)--- [ YAML Configs ] <--(reads state)--- [ React UI ]
-                                                                          |
-[ Hermes Skills ] <--------------------(dispatches command)---------------/
+Browser (/) ── mazosFetch ──► /api/mazos/* (local :3046, or bridge :3047 when hosted)
+                                   │
+                     src/lib/mazos/* (fs + git, server-side)
+                                   │
+        data/mazos/*.jsonl (gitignored)  +  .loops/<id>/ in TARGET repos
 ```
 
-## Design Principles
-- **Stateless UI**: The React application maintains no internal state regarding available skills. It relies entirely on the YAML files.
-- **Declarative Configuration**: Hermes skills register themselves or are mapped via YAML.
-- **Decoupled Execution**: The UI does not execute logic directly; it formats commands according to the YAML schema and dispatches them to Hermes.
+## Core flow
+
+1. `shippingSpine` (playbooks × projectStatus × git evidence) → Ship Next rows.
+2. `loopFactory.generateLoopDraft` gates a goal+repo+verifyAction through `taskScoring` → saved Loop scaffolds `.loops/<id>/{plan.md,criteria.json,progress.md}` in the target repo.
+3. `loopEngine` renders PLAN / BUILD prompts (plan-build split); state = fold of `loop-runs.jsonl` events + machine receipts.
+4. `loopReceipts.captureLoopRunReceipt` = runAction(verify) + `git log prev..HEAD` + `git diff --shortstat` + criteria hash/tamper check → appended to `loop-receipts.jsonl`.
+5. `loops` route refuses `complete` without a passing receipt + all criteria passing. Gates append to `decisions.jsonl`.
+
+## Execution surface
+
+Exactly one: `commandRegistry` allowlist → `runCommand` (spawns without a shell; npm shimmed through `cmd /c` on Windows). Per-repo `verify_*` actions + ~6 ops actions. Nothing else executes anything.
+
+## Key files
+
+- `src/lib/mazos/loopEngine.ts` — Loop type, prompts, state fold, circuit breaker, zombie auto-stop
+- `src/lib/mazos/loopReceipts.ts` — machine receipts, criteria tamper detection
+- `src/lib/mazos/loopFactory.ts` — draft + gate + scaffold
+- `src/lib/mazos/shippingSpine.ts` + `playbooks.ts` — ship-next verdict (FlowLens included)
+- `src/lib/mazos/commandRegistry.ts` + `runCommand.ts` — the allowlisted exec surface
+- `scripts/mazos-local-bridge.mjs` — origin-allowlisted `/api/mazos/*` proxy
+- `scripts/start-mazos-local-stack.ps1` — logon auto-start (prod server when built)

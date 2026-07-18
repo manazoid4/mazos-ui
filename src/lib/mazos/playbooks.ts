@@ -2,7 +2,7 @@
 // good work looks like. Grounded in the real repo READMEs, not aspirational copy.
 // Pure module — client-safe. The Shipping Spine consumes these server-side.
 
-export type ProductId = 'jobfilter' | 'recall' | 'openflowkit' | 'mazos';
+export type ProductId = 'jobfilter' | 'flowlens' | 'recall' | 'openflowkit' | 'mazos';
 
 export type Playbook = {
   id: ProductId;
@@ -35,6 +35,21 @@ export const PLAYBOOKS: Playbook[] = [
     topMetrics: ['Paying users', 'Lead view → contact conversion', 'Lead quality (rejected-as-junk rate)'],
     doneCriteria: ['Change verified against live /find-jobs data', 'Lint/build pass', 'Commit or PR link recorded'],
     defaultOwner: 'Hermes',
+  },
+  {
+    id: 'flowlens',
+    name: 'FlowLens',
+    statusQuery: 'FlowLens',
+    shipLogLabel: 'FlowLens',
+    audience: 'Teams and freelancers who must prove how work actually happened — workflow evidence on demand.',
+    paidOutcome: 'The revenue product: paying customers buy workflow-evidence capture and replay. Every MAZos hour must defend itself against a FlowLens hour.',
+    moat: 'Evidence trail as a first-class artifact; competitors sell dashboards, FlowLens sells proof.',
+    currentWedge: 'Keep paying-customer path healthy: ship the next revenue-facing fix before anything speculative.',
+    currentBet: 'Ship one revenue-facing FlowLens improvement and verify it with npm run build plus a real user flow.',
+    forbiddenBloat: ['Analytics suites', 'Social features', 'Anything not tied to a paying-customer workflow'],
+    topMetrics: ['Paying customers', 'Evidence captures per active user', 'Churn'],
+    doneCriteria: ['Change verified in a real flow', 'Lint/build pass', 'Commit or PR link recorded'],
+    defaultOwner: 'Maz',
   },
   {
     id: 'recall',

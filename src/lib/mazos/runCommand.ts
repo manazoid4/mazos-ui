@@ -11,8 +11,13 @@ export function runCommand(input: { actionId: string; label: string; cwd: string
   const started = Date.now();
   const startedAt = new Date(started).toISOString();
   const commandPreview = [input.command, ...input.args].join(' ');
+  // On Windows, npm/npx/yarn/pnpm are .cmd shims that cannot be spawned with
+  // shell:false — wrap them in cmd /c. Everything else stays shell-free.
+  const needsCmdShim = process.platform === 'win32' && !/\.(exe|com)$/i.test(input.command) && !input.command.includes('\\') && !input.command.includes('/');
+  const execCommand = needsCmdShim ? 'cmd' : input.command;
+  const execArgs = needsCmdShim ? ['/d', '/s', '/c', input.command, ...input.args] : input.args;
   return new Promise<RunResult>((resolve) => {
-    const child = spawn(input.command, input.args, { cwd: input.cwd, shell: false, windowsHide: true });
+    const child = spawn(execCommand, execArgs, { cwd: input.cwd, shell: false, windowsHide: true });
     let stdout = '', stderr = '';
     const timer = setTimeout(() => child.kill(), input.timeoutMs ?? 120000);
     child.stdout.on('data', d => stdout += String(d));

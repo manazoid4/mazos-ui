@@ -1,27 +1,20 @@
 # MAZos Loop State
 
-Last run: never
+Last run: never (v2 rebuilt 2026-07-18 — dogfood gate pending)
 Mode: L1 report-only
 Owner: Maz
 
 ## High Priority
-- [ ] Calibrate first MAZos Daily Triage run from vault + repo state.
-  - Why: loop quality must match how Maz actually works before any automation.
-  - Loop action: run report-only; no code edits.
+- [ ] Dogfood gate: 5 Daily Triage iterations over 5 days with machine receipts. This is the acceptance test for the v2 rebuild.
+- [ ] Rotate the OpenAI API key that was logged in the (now deleted) remote-intents file.
 
 ## Watch List
-- Recall is closest to paying; prioritize capture/onboarding/trust/monetization signals.
-- JobFilter remains #1 revenue priority; avoid MAZos work that does not increase shipping velocity or commercial clarity.
-- MAZos `.ralph/STATE.md` says complete while `.ralph/prd.json` still shows pending tasks; verify before trusting Ralph status.
-- External source platform repos exist locally; platform gitlink/registry state needs verification before claiming committed.
-
-## Recent Noise / Ignore
-- Broad “install all sources” work — ignore unless tied to a product diff.
-- Architecture polish without a paid-user path.
+- FlowLens is the revenue product and now has a playbook + spine row + verify_flowlens — every MAZos hour must defend itself against a FlowLens hour.
+- JobFilter path corrected to C:/Users/manaz/JobFilterV1.
 
 ## Human Decisions / Overrides
-- Start loops report-only.
-- Require human gate for accounts, scraping, credentials, deployments, payments, destructive changes, commits/pushes.
+- Loops start report-only; autonomy earned per loop via passing receipts.
+- Human gate for accounts, scraping, credentials, deployments, payments, destructive changes, pushes.
 
 ## Post-run Critique
-- Pending first run.
+- Pending first v2 run. Update this line from receipt evidence, not by hand.

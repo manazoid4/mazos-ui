@@ -1,10 +1,11 @@
 defaults:
-  active_mission: "Build useful MazOS cockpit that helps Maz ship Recall, JobFilter and OpenFlowKit"
+  active_mission: "Loop cockpit: define loops, gate them, collect receipts, ship FlowLens/JobFilter revenue work"
   priority_repos:
     mazos_ui: "C:/Users/manaz/Projects/mazos-ui"
+    flowlens: "C:/Users/manaz/flowlens"
+    jobfilter: "C:/Users/manaz/JobFilterV1"
     recall: "C:/Users/manaz/Projects/recall"
-    jobfilter: "C:/Users/manaz/Desktop/JobFilterV1"
-    openflowkit: "C:/Users/manaz/Projects/openflowkit"
+    openflowkit: "C:/Users/manaz/openflowkit"
   vaults:
     main: "C:/Users/manaz/Desktop/Obsidian Main Vault"
     jobfilter: "C:/Users/manaz/JobFilter-Obsidian-Vault"

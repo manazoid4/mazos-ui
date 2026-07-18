@@ -3,16 +3,22 @@ import http from 'node:http';
 const PORT = Number(process.env.MAZOS_BRIDGE_PORT || 3047);
 const TARGET = process.env.MAZOS_LOCAL_TARGET || 'http://127.0.0.1:3046';
 const ALLOWED_PREFIX = '/api/mazos';
+// The bridge exposes local repo/vault data to a browser page — only the hosted
+// cockpit and localhost may call it, not any random site open in the browser.
+const ALLOWED_ORIGINS = (process.env.MAZOS_BRIDGE_ORIGINS || 'https://mazos-command-centre.vercel.app,http://localhost:3046,http://127.0.0.1:3046')
+  .split(',').map(o => o.trim()).filter(Boolean);
 
-function cors(res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+function cors(res, req) {
+  const origin = req?.headers?.origin;
+  if (origin && ALLOWED_ORIGINS.includes(origin)) res.setHeader('Access-Control-Allow-Origin', origin);
+  res.setHeader('Vary', 'Origin');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'content-type,authorization,x-mazos-bridge');
   res.setHeader('Access-Control-Max-Age', '86400');
 }
 
-function json(res, status, body) {
-  cors(res);
+function json(res, status, body, req) {
+  cors(res, req);
   res.writeHead(status, { 'content-type': 'application/json; charset=utf-8' });
   res.end(JSON.stringify(body));
 }
@@ -26,8 +32,9 @@ function readBody(req) {
   });
 }
 
+let proxied = 0, failed = 0;
 const server = http.createServer(async (req, res) => {
-  cors(res);
+  cors(res, req);
   if (req.method === 'OPTIONS') {
     res.writeHead(204);
     res.end();
@@ -36,12 +43,12 @@ const server = http.createServer(async (req, res) => {
 
   const url = new URL(req.url || '/', `http://127.0.0.1:${PORT}`);
   if (url.pathname === '/health') {
-    json(res, 200, { ok: true, bridge: 'mazos-local-bridge', target: TARGET, startedAt });
+    json(res, 200, { ok: true, bridge: 'mazos-local-bridge', target: TARGET, startedAt, proxied, failed, uptimeSec: Math.round(process.uptime()) }, req);
     return;
   }
 
   if (!url.pathname.startsWith(ALLOWED_PREFIX)) {
-    json(res, 404, { ok: false, error: `Only ${ALLOWED_PREFIX} routes are proxied.` });
+    json(res, 404, { ok: false, error: `Only ${ALLOWED_PREFIX} routes are proxied.` }, req);
     return;
   }
 
@@ -57,17 +64,19 @@ const server = http.createServer(async (req, res) => {
       signal: AbortSignal.timeout(30_000),
     });
     const text = await upstream.text();
+    proxied++;
     res.writeHead(upstream.status, {
       'content-type': upstream.headers.get('content-type') || 'application/json; charset=utf-8',
       'x-mazos-bridge': 'local',
     });
     res.end(text);
   } catch (error) {
+    failed++;
     json(res, 502, {
       ok: false,
-      error: `Local MAZos target is unreachable at ${TARGET}. Start the local app with npm run dev -- -p 3046.`,
+      error: `Local MAZos target is unreachable at ${TARGET}. Run start-mazos-stack (or: npm run dev -- -p 3046).`,
       detail: error instanceof Error ? error.message : String(error),
-    });
+    }, req);
   }
 });
 

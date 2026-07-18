@@ -39,7 +39,11 @@ cmd /c "$Command" *>> '$LogPath'
 }
 
 if (-not (Test-Port 3046)) {
-  Start-StackProcess -Name 'MAZos local app' -Command 'npm run dev -- -p 3046' -LogPath $DevLog
+  # Prefer the production server when a build exists: faster, stabler for an
+  # always-on stack. Fall back to dev when there is no .next build.
+  $HasBuild = Test-Path (Join-Path $Root '.next\BUILD_ID')
+  $AppCommand = if ($HasBuild) { 'npm run start -- -p 3046' } else { 'npm run dev -- -p 3046' }
+  Start-StackProcess -Name 'MAZos local app' -Command $AppCommand -LogPath $DevLog
 } else {
   Add-Content -Path $DevLog -Value "[$(Get-Date -Format o)] Port 3046 already listening; not starting duplicate."
 }
