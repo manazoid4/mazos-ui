@@ -23,6 +23,14 @@ type Repo = { id:string; label:string; github:string };
 type FactoryMeta = { repos:string[]; verifyActions:{id:string; label:string}[] };
 type Draft = { def:LoopState['def']; gate:{approved:boolean; score:number; riskLevel:string; blockers:string[]; warnings:string[]} };
 type BridgeState = { checked:boolean; available:boolean; detail:string };
+type Proposal = { goal:string; repo:string; verifyActionId:string; gateScore?:number; riskLevel?:string; blockers?:string[] };
+type Ops = {
+  scheduler:{registered:boolean; status?:string|null; lastRun?:string|null; lastResult?:string|null; nextRun?:string|null};
+  triage:{ran:boolean; lastRun:string|null; findings:number; ageHours:number|null; runs7d:number};
+  proposed:{generatedAt:string|null; appOffline:boolean; proposals:Proposal[]};
+  loops:{total:number; running:number; gated:number; circuitOpen:number; trusted:number};
+  receipts:{week:number; passRate:number|null; last:{loopId:string; at:string; outcome:string}|null};
+};
 
 const LOCAL_BRIDGE = 'http://127.0.0.1:3047';
 function shouldUseLocalBridge() {
@@ -61,6 +69,8 @@ export default function Page() {
   const [factoryMeta,setFactoryMeta]=useState<FactoryMeta>({repos:[],verifyActions:[]});
   const [draft,setDraft]=useState<Draft|null>(null);
   const [drawerOpen,setDrawerOpen]=useState(false);
+  const [ops,setOps]=useState<Ops|null>(null);
+  const [dismissed,setDismissed]=useState<Set<string>>(new Set());
   const drawerRef=useRef<HTMLDivElement>(null);
 
   async function refresh(){
@@ -77,6 +87,8 @@ export default function Page() {
   async function loadDecisions(){ const r=await mazosFetch('/api/mazos/decisions').then(r=>r.json()); setDecisions(r.decisions||[]); }
   async function loadShip(){ setShip(await mazosFetch('/api/mazos/shiplog').then(r=>r.json())); }
   async function loadFactoryMeta(){ try{ const r=await mazosFetch('/api/mazos/loop-factory').then(r=>r.json()); setFactoryMeta({repos:r.repos||[],verifyActions:r.verifyActions||[]}); }catch{} }
+  async function loadOps(){ try{ setOps(await mazosFetch('/api/mazos/ops').then(r=>r.json())); }catch{ setOps(null); } }
+  async function saveProposal(p:Proposal){ setBusy('proposal'); const r=await mazosFetch('/api/mazos/loop-factory',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({goal:p.goal,repo:p.repo,verifyActionId:p.verifyActionId,action:'save'})}).then(r=>r.json()); setBusy(''); if(r.ok){ setDismissed(d=>new Set(d).add(p.goal)); await loadLoops(); } else setModal({title:'Gate blocked the save',body:<p className="bad inline">{r.error}</p>}); }
   async function bridgeHealth(){
     if(!shouldUseLocalBridge()){ setBridge({checked:true,available:false,detail:'local mode'}); return; }
     try{ const res=await fetch(`${LOCAL_BRIDGE}/health`,{cache:'no-store',signal:AbortSignal.timeout(1200)}); const b=await res.json(); setBridge({checked:true,available:res.ok,detail:b.target||'bridge'}); }
@@ -104,7 +116,7 @@ export default function Page() {
     setTimeout(()=>drawerRef.current?.scrollIntoView({behavior:'smooth'}),50);
   }
 
-  useEffect(()=>{ document.documentElement.dataset.theme='dark'; bridgeHealth(); refresh(); loadSpine(); loadLoops(); loadDecisions(); loadShip(); loadFactoryMeta(); },[]);
+  useEffect(()=>{ document.documentElement.dataset.theme='dark'; bridgeHealth(); refresh(); loadSpine(); loadLoops(); loadDecisions(); loadShip(); loadFactoryMeta(); loadOps(); const t=setInterval(loadOps,60_000); return()=>clearInterval(t); },[]);
 
   const critical=health.filter(s=>!s.online&&s.signal!=='not-running').length;
   const openDecisions=decisions.filter(d=>d.status==='open');
@@ -121,6 +133,23 @@ export default function Page() {
         </div>
       </div>
     </header>
+
+    {/* 0 ─ OPS: state of everything, one line */}
+    {ops&&<div className="chips" style={{padding:'0.4rem 0.75rem',opacity:0.95}}>
+      <span className={ops.scheduler.registered?'ok':'bad inline'} title={ops.scheduler.registered?`last: ${ops.scheduler.lastRun||'never'} (result ${ops.scheduler.lastResult||'—'}) · next: ${ops.scheduler.nextRun||'—'}`:'run scripts/register-triage-task.ps1'}>
+        ⏰ {ops.scheduler.registered?`auto-triage ${ops.scheduler.status?.toLowerCase()||'ready'} · next ${ops.scheduler.nextRun?.split(' ')[1]||'—'}`:'auto-triage NOT registered'}
+      </span>
+      <span className={ops.triage.ran&&(ops.triage.ageHours??99)<30?'ok':'bad inline'} title={`runs last 7d: ${ops.triage.runs7d}`}>
+        🔍 {ops.triage.ran?`triage ${ops.triage.ageHours}h ago · ${ops.triage.findings} findings`:'triage never ran'}
+      </span>
+      <span className={ops.loops.circuitOpen?'bad inline':'ok'}>
+        ∞ {ops.loops.running} running · {ops.loops.gated} gated{ops.loops.circuitOpen?` · ${ops.loops.circuitOpen} circuit-open`:''} · {ops.loops.trusted}★
+      </span>
+      <span className={ops.receipts.passRate!==null&&ops.receipts.passRate<80?'bad inline':'ok'}>
+        🧾 {ops.receipts.week} receipts/7d{ops.receipts.passRate!==null?` · ${ops.receipts.passRate}% pass`:''}
+      </span>
+      <button className="ghost" disabled={busy==='run_triage'} title="Headless triage now (bounded 20min)" onClick={()=>runOpsAction('run_triage')}>{busy==='run_triage'?'TRIAGING…':'▶ Run triage'}</button>
+    </div>}
 
     {/* 1 ─ SHIP NEXT */}
     <Panel title="Ship Next" badge={spine?`verdict: ${spine.verdict.product} — ${spine.verdict.action}`:'loading spine…'}>
@@ -140,6 +169,16 @@ export default function Page() {
 
     {/* 2 ─ LOOP DECK */}
     <Panel title="Loop Deck" badge={`${loops.length} loops · receipts are machine-filled · no receipt = didn't happen`}>
+      {ops&&ops.proposed.proposals.filter(p=>!dismissed.has(p.goal)).length>0&&<div className="cardBlock">
+        <b>Proposed by triage{ops.proposed.appOffline?' (app was offline — no gate scores)':''}</b>
+        {ops.proposed.proposals.filter(p=>!dismissed.has(p.goal)).map(p=><div key={p.goal} className="history" style={{alignItems:'center'}}>
+          <span title={(p.blockers||[]).join('\n')}>{p.goal} <small className="muted">{p.repo} · {p.verifyActionId}{p.gateScore!==undefined?` · gate ${p.gateScore}`:''}</small></span>
+          <span className="chips">
+            <button className="ghost" disabled={busy==='proposal'} onClick={()=>saveProposal(p)}>Save</button>
+            <button className="ghost" onClick={()=>setDismissed(d=>new Set(d).add(p.goal))}>Dismiss</button>
+          </span>
+        </div>)}
+      </div>}
       <div className="loopDeck">{loops.map(l=><LoopCard key={l.def.id} loop={l} post={loopPost} open={setModal} onGate={loadDecisions}/>)}</div>
       <div ref={drawerRef}>
         {!drawerOpen&&<button className="ghost wide" onClick={()=>setDrawerOpen(true)}>+ New Loop</button>}
