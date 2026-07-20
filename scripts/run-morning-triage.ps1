@@ -13,7 +13,9 @@ Start-Sleep -Seconds 10
 
 # Headless Claude Code runs the triage skill. Hard caps: 40 turns + 20 min wall
 # clock — a hung triage costs one bounded run, never a night (token-blowout guard).
-$claudeArgs = @('-p', 'Run the mazos-triage skill now. Obey its STOP section exactly. Report-only.', '--max-turns', '40')
+# NOTE: single pre-quoted string — Start-Process joins array args without
+# quoting, which shatters a multi-word prompt into separate CLI args.
+$claudeArgs = '-p "Run the mazos-triage skill now. Obey its STOP section exactly. Report-only." --max-turns 40'
 $proc = Start-Process -FilePath 'claude' -ArgumentList $claudeArgs -WorkingDirectory $Root `
   -RedirectStandardOutput "$Log.out" -RedirectStandardError "$Log.err" -PassThru -WindowStyle Hidden
 
