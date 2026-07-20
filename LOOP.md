@@ -19,6 +19,10 @@ One source of truth: the in-app Loop Deck at `http://127.0.0.1:3046`. This file 
 13. The prompt is versioned config — add a rule after every misbehavior, bump promptVersion.
 14. Only objectively checkable goals become loops; open-ended goals decompose first.
 15. Human stays accountable: specs in, diffs + receipts out.
+16. Grill before planning (Pocock): the PLAN pass verifies its 3 riskiest assumptions against the repo before writing a plan.
+17. Blocked-issue kanban: plan items carry `(blocks: #n)` deps; BUILD only picks unblocked items — enables safe parallelism later.
+18. Vertical slices: each item thin but complete through every layer, not layer-only work.
+19. Ratchets: every bug fix ships with a permanent guard (test/lint/check) in the same commit — the bug class dies, not the instance.
 
 ## Dogfood gate (acceptance test for v2)
 
