@@ -2,7 +2,7 @@ name: Auto-merge and deploy
 
 on:
   pull_request:
-    types: [opened, synchronize]
+    types: [opened, synchronize, ready_for_review]
 
 permissions:
   pull-requests: write
@@ -11,7 +11,7 @@ permissions:
 jobs:
   auto_merge:
     runs-on: ubuntu-latest
-    if: github.actor == 'manazoid4' || github.event.pull_request.draft == false
+    if: github.event.pull_request.draft == false && github.actor == 'manazoid4'
     steps:
       - uses: actions/checkout@v4
 
