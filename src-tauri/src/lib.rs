@@ -15,6 +15,8 @@ pub fn run() {
       Ok(())
     })
     .invoke_handler(tauri::generate_handler![
+        commands::runtime_status,
+        commands::list_workspaces,
         commands::git_status,
         commands::git_log_recent,
     ])
