@@ -1,39 +1,69 @@
-# MazOS Cockpit
+# MAZos
 
-The command center for Maz's automated workflows, loops, and systems.
+MAZos is Maz's local operator console for prioritising project work, defining bounded agent runs, approving risky actions, verifying outcomes and preserving evidence.
 
-## Dual Architecture
+## Current status
 
-MazOS is built as a **Next.js 16 (App Router)** application that runs in two modes:
+### Web/local development mode
 
-1. **Web Dashboard (Vercel)**: Hosted version accessible from anywhere. Proxies local data via a Node.js bridge when on your home network.
-2. **Windows Desktop App (Tauri v2)**: Native `.exe` application running locally. Uses high-performance Rust IPC to bypass HTTP and read local repositories, git logs, and Hermes state directly.
-
-### Running Locally (Web)
+The full application currently runs as a Next.js 16 App Router application. Its route handlers read local repository, loop, decision, run, Hermes and vault state.
 
 ```bash
 npm install
-npm run dev -- -p 3046
+npm run dev
 ```
 
-### Running Locally (Desktop)
+The development server listens on port `3046`.
 
-Requires Rust MSVC toolchain installed.
+### Windows desktop mode — experimental shell
+
+The repository contains a Tauri v2 Windows shell and can compile installer artifacts. **The installed desktop build is not yet accepted as a standalone MAZos application.**
+
+The current static desktop export removes the Next.js API routes, while most frontend features still depend on `/api/mazos/*`. The Rust backend currently implements only two Git commands. A successful `.exe` or `.msi` build therefore proves packaging, not complete dashboard functionality.
+
+Do not replace an active MAZos installation or publish another desktop release until the acceptance matrix in `docs/product-reset/DESKTOP_RUNTIME_AUDIT.md` passes with no development server or separate bridge running.
 
 ```bash
-npm run tauri:dev    # Hot-reloading native window
-npm run tauri:build  # Builds the production .exe installers
+npm run tauri:dev
+npm run tauri:build
 ```
 
-## Features
+`tauri:dev` uses the Next.js development server and is not proof that the packaged static application works standalone.
 
-- **Action Matrix:** Trigger predefined agentic flows.
-- **Toolkit Panel:** Shows the top loaded Hermes skills and active MCP servers.
-- **CLI Stats Strip:** Context fuel gauge and daily token cost tracking.
-- **Loops Grid:** Visual layout of background tasks and long-running routines.
-- **Decision Inbox:** Approve/deny pending tasks requiring human gating.
+## Product areas
 
-## Deployment
+- **Priority and project status** — rank work and expose blockers.
+- **Bounded runs** — define goals, verification and stopping conditions.
+- **Decisions** — pause agents for human approval.
+- **Evidence** — collect build, test, diff, commit and run results.
+- **Hermes controls** — inspect configured profiles and local capabilities.
 
-- **Web:** Pushes to `main` auto-deploy to Vercel.
-- **Desktop:** The GitHub Actions workflow `.github/workflows/tauri-build.yml` compiles the Windows `.exe` on any new version tag (`git tag v1.0.0 && git push --tags`) and attaches it to a GitHub Release.
+## Repository boundaries
+
+MAZos coordinates other projects but does not absorb them:
+
+- Agent Nudge owns cross-agent context, claims and acknowledgement.
+- Recall owns personal memory and profile modelling.
+- AgentDock owns the enterprise agent-control product.
+- JobFilter, FlowLens and OpenFlowKit remain independent products.
+- `mazos-site` remains the public engineering portfolio.
+
+## Verification
+
+```bash
+npm test
+npm run lint
+npm run build
+cargo check --manifest-path src-tauri/Cargo.toml
+```
+
+These checks validate code and compilation. Packaged desktop acceptance additionally requires installation and functional testing with all unbundled servers stopped.
+
+## Desktop repair programme
+
+- Tracking issue: `#53`
+- Truth audit: `docs/product-reset/DESKTOP_RUNTIME_AUDIT.md`
+- Architecture decision: `docs/product-reset/ADR-001-DESKTOP-RUNTIME.md`
+- Repair branch: `agent/mazos-desktop-runtime-repair`
+
+No `v1.0.1` release should be created until independent verification confirms the installed app satisfies the documented acceptance criteria.
