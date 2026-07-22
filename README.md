@@ -1,43 +1,39 @@
-# MAZos — Loop Cockpit
+# MazOS Cockpit
 
-One screen that answers **what ships next** and turns it into a gated agent loop with machine receipts.
+The command center for Maz's automated workflows, loops, and systems.
 
-MAZos never executes agent work. It defines loops, gates them before launch, hands the operator a copy-paste prompt, then captures hard evidence per iteration — verify exit code, commit range, diff size, criteria state — and folds that into one verdict.
+## Dual Architecture
 
-## The screen (four zones, decision order)
+MazOS is built as a **Next.js 16 (App Router)** application that runs in two modes:
 
-1. **Ship Next** — Shipping Spine rows per product (FlowLens, JobFilter, Recall, OpenFlowKit, MAZos): objective, next action, evidence, blocker. Buttons: Context Pack, → New Loop (prefilled), Handoff prompt.
-2. **Loop Deck** — one card per Loop. A Loop = goal + repo + verify action + two prompts (PLAN / BUILD) + receipts. Buttons: Plan prompt, Build prompt, Run verify, Log receipt, Gate, Stop. New Loop drawer gates every draft through task scoring; **no verify action, no save**.
-3. **Decisions** — open human gates from loops. Invisible when empty.
-4. **Shipped** — last 7 days of commits across repos + ~6 proven ops actions + run history.
+1. **Web Dashboard (Vercel)**: Hosted version accessible from anywhere. Proxies local data via a Node.js bridge when on your home network.
+2. **Windows Desktop App (Tauri v2)**: Native `.exe` application running locally. Uses high-performance Rust IPC to bypass HTTP and read local repositories, git logs, and Hermes state directly.
 
-Secondary page: `/hermes` (agent profiles). That's all.
-
-## The Loop primitive
-
-- **PLAN prompt**: gap analysis → writes `.loops/<id>/plan.md` in the target repo. No commits.
-- **BUILD prompt**: exactly ONE plan item, smallest diff, run verify, commit.
-- **Log receipt**: MAZos runs the loop's registered verify action (allowlisted command), inspects `git log prevReceipt..HEAD` + `git diff --shortstat`, hashes `criteria.json` (tamper detection), and appends a machine receipt. You cannot click your way to a completed loop.
-- **Complete** is refused unless the last receipt passed and every criterion passes.
-- Trust: ★ badge at ≥5 passing receipts; circuit opens on repeated identical failure; a "running" loop with no receipts for 3 days auto-stops.
-
-Design law: Karpathy's generation-verification loop (verification is the bottleneck; short leash; autonomy earned per-task), Ralph-style plan/build split with filesystem memory, Anthropic's tamper-proof criteria files. See `docs/` and the v2 build prompt in the claude-obsidian vault.
-
-## Run
+### Running Locally (Web)
 
 ```bash
-npm run dev -- -p 3046   # app
-npm run bridge            # 3047 → 3046 proxy for the hosted site
+npm install
+npm run dev -- -p 3046
 ```
 
-Hosted: `https://mazos-command-centre.vercel.app` (reads local data through the bridge; degrades to hosted API when the bridge is off). Auto-start on login: scheduled task **MAZos Local Stack** → `scripts/start-mazos-local-stack.ps1` (uses the production server when `.next` exists).
+### Running Locally (Desktop)
 
-## Safety posture
+Requires Rust MSVC toolchain installed.
 
-No auto agent execution — agents launch only via copied prompts. The only shell surface is the pre-registered `commandRegistry` allowlist (per-repo `verify_*` build actions + ops actions). Local-first; `data/` is gitignored. No email, no cron, no LLM calls from MAZos.
+```bash
+npm run tauri:dev    # Hot-reloading native window
+npm run tauri:build  # Builds the production .exe installers
+```
 
-## API (14 routes)
+## Features
 
-`/api/mazos` · `action` · `context-pack` · `decisions` · `health` · `hermes-profile` · `loop-factory` · `loop-receipts` · `loops` · `project-status` · `repos` · `runs` · `shiplog` · `shipping-spine`
+- **Action Matrix:** Trigger predefined agentic flows.
+- **Toolkit Panel:** Shows the top loaded Hermes skills and active MCP servers.
+- **CLI Stats Strip:** Context fuel gauge and daily token cost tracking.
+- **Loops Grid:** Visual layout of background tasks and long-running routines.
+- **Decision Inbox:** Approve/deny pending tasks requiring human gating.
 
-External agents: read `shipping-spine` and `repos` first; contracts preserved from v1.
+## Deployment
+
+- **Web:** Pushes to `main` auto-deploy to Vercel.
+- **Desktop:** The GitHub Actions workflow `.github/workflows/tauri-build.yml` compiles the Windows `.exe` on any new version tag (`git tag v1.0.0 && git push --tags`) and attaches it to a GitHub Release.

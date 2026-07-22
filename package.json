@@ -5,9 +5,13 @@
   "main": "index.js",
   "scripts": {
     "test": "npx --yes tsx --test tests/",
-    "dev": "next dev",
+    "dev": "next dev -p 3046",
     "bridge": "node scripts/mazos-local-bridge.mjs",
     "build": "next build",
+    "build:desktop": "node scripts/build-desktop.mjs",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build",
     "start": "next start",
     "lint": "tsc --noEmit"
   },
@@ -17,6 +21,8 @@
   "dependencies": {
     "@base-ui/react": "^1.6.0",
     "@tailwindcss/postcss": "^4.3.1",
+    "@tauri-apps/api": "^2.11.1",
+    "@tauri-apps/plugin-shell": "^2.3.5",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "js-yaml": "^5.1.0",
@@ -30,6 +36,7 @@
     "zustand": "^5.0.14"
   },
   "devDependencies": {
+    "@tauri-apps/cli": "^2.11.4",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^26.0.1",
     "@types/react": "^19.2.17",

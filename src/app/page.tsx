@@ -11,6 +11,9 @@ import { SAFETY_LEVELS, type SafetyLevel } from '@/lib/mazos/safety';
 import { buildLoopPrompt, buildPlanPrompt, type LoopState, type LoopStopReason } from '@/lib/mazos/loopEngine';
 import { buildResolutionPrompt, type DecisionItem } from '@/lib/mazos/decisions';
 
+import { ToolkitPanel } from '@/components/ToolkitPanel';
+import { StatsStrip } from '@/components/StatsStrip';
+
 type Run = { success:boolean; actionId:string; label:string; cwd:string; commandPreview:string; stdout:string; stderr:string; exitCode:number|null; startedAt:string; finishedAt:string; durationMs:number; nextSuggestedAction:string };
 type Health = { id:string; label:string; online:boolean; signal:string; meaning:string };
 type Action = { id:string; label:string; description:string; category:string; enabled:boolean; disabledReason?:string; safetyLevel:SafetyLevel; expectedOutput:string };
