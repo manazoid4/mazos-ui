@@ -12,15 +12,24 @@
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "MazOS",
-        "width": 800,
-        "height": 600,
+        "width": 1000,
+        "height": 720,
+        "minWidth": 760,
+        "minHeight": 560,
         "resizable": true,
         "fullscreen": false
       }
     ],
     "security": {
-      "csp": null
+      "csp": {
+        "default-src": "'self' customprotocol: asset:",
+        "connect-src": "ipc: http://ipc.localhost",
+        "font-src": ["'self'", "data:", "https://fonts.gstatic.com"],
+        "img-src": "'self' asset: http://asset.localhost blob: data:",
+        "style-src": "'unsafe-inline' 'self' https://fonts.googleapis.com"
+      }
     }
   },
   "bundle": {
