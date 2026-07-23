@@ -25,6 +25,26 @@ function walk(relative) {
   return output;
 }
 
+const runtimeClient = 'src/lib/mazos/runtimeClient.ts';
+const runtimeClientContent = fs.existsSync(path.join(root, runtimeClient)) ? read(runtimeClient) : '';
+const hasFetchAdapter = /installDesktopFetchAdapter/.test(runtimeClientContent)
+  && /backend_connection/.test(runtimeClientContent)
+  && /x-mazos-token/.test(runtimeClientContent);
+
+const desktopBuild = 'scripts/build-desktop.mjs';
+const desktopBuildContent = fs.existsSync(path.join(root, desktopBuild)) ? read(desktopBuild) : '';
+const hasStandaloneBackend = /next\.config\.server\.mjs/.test(desktopBuildContent)
+  && /standalone/.test(desktopBuildContent)
+  && /serverResources/.test(desktopBuildContent)
+  && /node\.exe/.test(desktopBuildContent);
+
+if (!hasFetchAdapter) {
+  add('blocker', 'DESKTOP_FETCH_ADAPTER_MISSING', runtimeClient, 'Packaged UI has no authenticated adapter for /api/mazos calls.');
+}
+if (!hasStandaloneBackend) {
+  add('blocker', 'STANDALONE_BACKEND_MISSING', desktopBuild, 'Desktop build does not package the full Next.js backend.');
+}
+
 const clientFiles = [...walk('src/app'), ...walk('src/components')];
 for (const file of clientFiles) {
   const content = read(file);
@@ -33,34 +53,40 @@ for (const file of clientFiles) {
 
   if (/(?:fetch|mazosFetch)\s*\(\s*[`'"]\/api\/mazos/.test(content)) {
     add(
-      'blocker',
-      'CLIENT_DIRECT_API',
+      hasFetchAdapter && hasStandaloneBackend ? 'warning' : 'blocker',
+      'CLIENT_COMPAT_API',
       file,
-      'Client component calls /api/mazos directly or through a page-local wrapper. Packaged desktop exports remove these route handlers; use the typed MAZos runtime client.',
+      hasFetchAdapter && hasStandaloneBackend
+        ? 'Client still uses a compatibility API call. The pre-mount desktop adapter authenticates and redirects it to the packaged backend; migrate to the typed client incrementally.'
+        : 'Client calls /api/mazos without a complete packaged adapter/backend.',
     );
   }
 
   if (/const\s+LOCAL_BRIDGE\s*=|127\.0\.0\.1:3047/.test(content)) {
     add(
-      'blocker',
-      'CLIENT_LOCAL_BRIDGE',
+      'warning',
+      'LEGACY_HOSTED_BRIDGE',
       file,
-      'Client component contains the legacy browser-to-local bridge path. The authoritative desktop runtime must use the packaged backend adapter.',
+      'Legacy hosted browser bridge remains. It must never be the authoritative desktop execution path.',
     );
   }
 }
 
-const desktopBuild = 'scripts/build-desktop.mjs';
-if (fs.existsSync(path.join(root, desktopBuild))) {
-  const content = read(desktopBuild);
-  if (/src\/app\/api|apiDir/.test(content) && /renameSync\s*\(\s*apiDir/.test(content)) {
-    add(
-      'blocker',
-      'API_REMOVED_FROM_DESKTOP',
-      desktopBuild,
-      'Desktop build moves src/app/api out of the application while client features still depend on it.',
-    );
-  }
+if (/src\/app\/api|apiDir/.test(desktopBuildContent) && /renameSync\s*\(\s*apiDir/.test(desktopBuildContent)) {
+  add(
+    hasStandaloneBackend ? 'info' : 'blocker',
+    'STATIC_FRONTEND_EXCLUDES_SERVER_ROUTES',
+    desktopBuild,
+    hasStandaloneBackend
+      ? 'Expected: server routes are excluded only from the static frontend after a standalone backend has been packaged.'
+      : 'Desktop export removes API routes without packaging an alternative backend.',
+  );
+}
+
+const proxyFile = 'src/proxy.ts';
+const proxyContent = fs.existsSync(path.join(root, proxyFile)) ? read(proxyFile) : '';
+if (!/MAZOS_DESKTOP_TOKEN/.test(proxyContent) || !/x-mazos-token/.test(proxyContent)) {
+  add('blocker', 'DESKTOP_API_AUTH_MISSING', proxyFile, 'Packaged backend API boundary does not enforce the ephemeral desktop token.');
 }
 
 const tauriConfig = 'src-tauri/tauri.conf.json';
@@ -68,6 +94,10 @@ if (fs.existsSync(path.join(root, tauriConfig))) {
   const config = JSON.parse(read(tauriConfig));
   if (config?.app?.security?.csp == null) {
     add('blocker', 'CSP_DISABLED', tauriConfig, 'Tauri Content Security Policy is null.');
+  }
+  const resources = config?.bundle?.resources || [];
+  if (!resources.some((entry) => String(entry).includes('resources/server'))) {
+    add('blocker', 'BACKEND_NOT_BUNDLED', tauriConfig, 'Tauri bundle does not include packaged backend resources.');
   }
 }
 
@@ -81,6 +111,9 @@ if (fs.existsSync(path.join(root, commandsFile))) {
       commandsFile,
       'Renderer-supplied repository paths reach Git without validation against a confirmed workspace registry.',
     );
+  }
+  for (const required of ['start_backend', 'stop_backend', 'backend_connection', 'MAZOS_DESKTOP_TOKEN']) {
+    if (!content.includes(required)) add('blocker', 'BACKEND_LIFECYCLE_INCOMPLETE', commandsFile, `Missing desktop backend primitive: ${required}.`);
   }
 }
 
@@ -119,6 +152,7 @@ for (const finding of findings) {
 const blockers = findings.filter((finding) => finding.severity === 'blocker');
 console.log(`\nBlockers: ${blockers.length}`);
 console.log(`Warnings: ${findings.filter((finding) => finding.severity === 'warning').length}`);
+console.log(`Info: ${findings.filter((finding) => finding.severity === 'info').length}`);
 
 if (strict && blockers.length > 0) {
   console.error('\nPackaged desktop contract failed. Do not publish or describe the desktop application as complete.');
