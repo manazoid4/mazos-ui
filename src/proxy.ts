@@ -37,7 +37,7 @@ export function proxy(request: NextRequest) {
   }
 
   const response = NextResponse.next();
-  for (const [name, value] of headers.entries()) response.headers.set(name, value);
+  headers.forEach((value, name) => response.headers.set(name, value));
   return response;
 }
 
