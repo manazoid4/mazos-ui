@@ -1,105 +1,110 @@
 # ADR-001: MAZos desktop runtime
 
-- Status: **Accepted provisionally; implementation requires a packaging spike**
+- Status: **Accepted and implemented; CI validated, installed-GUI acceptance pending**
 - Date: 2026-07-23
 - Tracking: #53
+- Draft PR: #54
 
 ## Context
 
-MAZos currently combines:
+The previous desktop conversion combined a static Tauri frontend with Next.js API-dependent pages but removed `src/app/api` from the desktop export. Rust exposed only two Git commands. The installer could compile while most useful panels had no standalone backend.
 
-- Next.js client pages;
-- Next.js route handlers that access local files, Git, PowerShell and Hermes state;
-- a localhost proxy used by the hosted page;
-- a Tauri static export;
-- two Rust Git commands.
-
-The static desktop build removes the route handlers, while the client continues to depend on them. Porting the complete orchestration surface to Rust immediately would duplicate substantial working TypeScript logic and increase migration risk.
+Porting the complete orchestration surface to Rust would duplicate working TypeScript loop, decision, action and evidence logic.
 
 ## Decision
 
-Use this target architecture:
+Use this architecture:
 
 ```text
 Tauri desktop shell
-  -> authenticated local MAZos service supervised by Tauri
+  -> authenticated Next.js standalone backend supervised by Tauri
+      -> existing /api/mazos runtime
       -> existing TypeScript domain/orchestration modules
-      -> workspace registry
-      -> SQLite/event state
-      -> registered subprocess adapters
-      -> Agent Nudge / Hermes / repositories
+      -> application-local writable state
+      -> registered local tools and repositories
+
+Static Tauri frontend
+  -> pre-mount desktop fetch adapter
+      -> ephemeral token
+      -> random loopback backend port
 ```
 
-The browser UI must call one typed MAZos client:
+Tauri remains the security and lifecycle shell. TypeScript remains the product/domain runtime.
 
-```text
-MAZos client
-  -> desktop adapter: authenticated local service
-  -> hosted adapter: redacted/read-only remote data or unavailable state
-```
+## Implemented controls
 
-Components must not call `/api/mazos/*` directly.
+- The Windows build creates the standalone Next.js backend before producing the static frontend.
+- `node.exe` and standalone server resources are packaged into the installer.
+- Tauri chooses a random loopback port and starts the backend itself.
+- Tauri creates an ephemeral UUID token and exposes it only through typed IPC.
+- Next Proxy protects `/api/mazos/*` with that token and restricts allowed desktop origins.
+- A pre-mount frontend adapter redirects existing `/api/mazos/*` calls to the packaged backend.
+- Writable data and research output use application-local directories.
+- Tauri stops the supervised child process on application exit.
+- Backend startup failure is visible instead of silently hiding panels.
+- CSP is non-null.
+- Workspace configuration is validated and canonicalised.
+- Rust Git commands accept registered workspace IDs, not renderer-supplied arbitrary paths.
 
-## Why this option
+## CI evidence
 
-- It preserves the working TypeScript loop, decision, action and evidence logic.
-- It avoids a high-risk full Rust rewrite before product usefulness is proven.
-- It provides a single backend boundary for Tauri packaging.
-- It supports process supervision, cancellation and event streaming.
-- It keeps the hosted surface separate from unrestricted local control.
+The Windows pull-request workflow proved:
 
-## Packaging spike
+1. unit tests;
+2. TypeScript check;
+3. normal web build;
+4. Rust check;
+5. strict desktop architecture contract;
+6. standalone backend generation;
+7. static frontend generation;
+8. authenticated API request success;
+9. unauthenticated API request rejection;
+10. allowed-origin CORS preflight;
+11. EXE installer generation;
+12. MSI installer generation;
+13. installer artifact upload.
 
-Before migration, prove a minimal service can:
+## Remaining acceptance work
 
-1. be packaged with the Windows installer;
-2. start under Tauri supervision;
-3. bind only to loopback or use a local IPC transport;
-4. require an ephemeral authentication token;
-5. expose `/health` and one read-only project endpoint;
-6. stream one event to the UI;
-7. stop cleanly when the app exits;
-8. recover from a crashed service;
-9. produce no extra console window;
-10. pass installation from a clean clone/CI artifact.
+CI does not prove the installed webview experience. Before merge or release, install the CI artifact on Windows with all unbundled services stopped and complete `DESKTOP_ACCEPTANCE_MATRIX.md`.
 
-## Security requirements
+Still to test manually:
 
-- Non-null CSP.
+- installed application launch;
+- every visible panel and action;
+- no missing API calls in the webview;
+- child-process shutdown from the installed app;
+- persisted state after restart;
+- no extra console window;
+- actual installer upgrade/uninstall behaviour.
+
+## Follow-up architecture work
+
+The compatibility fetch adapter intentionally preserves the existing UI while avoiding a rewrite. Components should migrate incrementally to one typed MAZos client. Direct page-local `/api/mazos/*` wrappers are warnings, not the long-term interface.
+
+SQLite/event-state migration, agent process cancellation and deeper action allowlisting remain separate vertical slices; they are not prerequisites for proving the sidecar packaging boundary.
+
+## Security requirements retained
+
 - No arbitrary shell strings from the renderer.
 - Workspace paths selected from a confirmed registry.
 - Structured command arguments.
-- Loopback-only binding if HTTP is used.
-- Ephemeral token created by the shell and passed out-of-band.
+- Loopback-only backend binding.
+- Ephemeral desktop token.
 - Redaction before persistence.
 - Explicit approval before external, destructive, financial or credential-sensitive actions.
-- No hosted page may directly execute local actions.
-
-## Consequences
-
-### Positive
-
-- Fastest route to preserving existing capability.
-- TypeScript remains the primary product/domain language.
-- Rust remains a narrow security and lifecycle shell.
-- Desktop and hosted modes can have honest, distinct permissions.
-
-### Negative
-
-- The installer must package and supervise a runtime/service.
-- Process lifecycle and update compatibility require dedicated tests.
-- Existing Next route handlers must be refactored into reusable domain functions rather than imported as HTTP handlers.
+- No hosted page may directly execute unrestricted local actions.
 
 ## Rejected alternatives
 
-### Continue static export plus a few Tauri commands
+### Static export plus a few Tauri commands
 
-Rejected because it creates a permanently split implementation and leaves most features absent.
+Rejected because it leaves most application features absent and creates a permanently split implementation.
 
-### Full Rust rewrite now
+### Full Rust rewrite
 
-Rejected because it duplicates the current engine before the product workflow and desktop packaging are validated.
+Rejected because it duplicates the existing engine before product usefulness warrants the cost.
 
-### Hosted Vercel dashboard controlling localhost bridge
+### Hosted dashboard as the authoritative local controller
 
-Rejected as the authoritative desktop architecture because browser-to-local control is brittle and expands the trust boundary.
+Rejected because browser-to-local control is brittle and expands the trust boundary.
