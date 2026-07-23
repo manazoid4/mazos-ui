@@ -16,6 +16,8 @@ const temporaryConfig = path.join(root, 'next.config.mjs');
 const backupConfig = path.join(root, 'next.config.js.desktop-backup');
 const apiDir = path.join(root, 'src', 'app', 'api');
 const apiTemp = path.join(root, '.desktop-build-api-temp');
+const proxyFile = path.join(root, 'src', 'proxy.ts');
+const proxyTemp = path.join(root, '.desktop-build-proxy.ts');
 const serverResources = path.join(root, 'src-tauri', 'resources', 'server');
 
 if (process.platform !== 'win32') {
@@ -76,17 +78,25 @@ function buildStaticFrontend() {
   rmSync(path.join(root, '.next'), { recursive: true, force: true });
   rmSync(path.join(root, 'out'), { recursive: true, force: true });
   rmSync(apiTemp, { recursive: true, force: true });
+  rmSync(proxyTemp, { force: true });
 
   let movedApi = false;
+  let movedProxy = false;
   try {
     if (existsSync(apiDir)) {
       renameSync(apiDir, apiTemp);
       movedApi = true;
     }
+    if (existsSync(proxyFile)) {
+      renameSync(proxyFile, proxyTemp);
+      movedProxy = true;
+    }
     withNextConfig('next.config.desktop.mjs', runNextBuild);
   } finally {
     if (movedApi && existsSync(apiTemp)) renameSync(apiTemp, apiDir);
+    if (movedProxy && existsSync(proxyTemp)) renameSync(proxyTemp, proxyFile);
     rmSync(apiTemp, { recursive: true, force: true });
+    rmSync(proxyTemp, { force: true });
   }
 
   if (!existsSync(path.join(root, 'out', 'index.html'))) {
@@ -101,5 +111,6 @@ try {
 } catch (error) {
   if (existsSync(backupConfig) && !existsSync(originalConfig)) renameSync(backupConfig, originalConfig);
   if (existsSync(apiTemp) && !existsSync(apiDir)) renameSync(apiTemp, apiDir);
+  if (existsSync(proxyTemp) && !existsSync(proxyFile)) renameSync(proxyTemp, proxyFile);
   throw error;
 }
