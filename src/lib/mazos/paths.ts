@@ -1,9 +1,9 @@
 import path from 'path';
 
 export const USER_HOME = process.env.USERPROFILE || process.env.HOME || 'C:/Users/manaz';
-export const ROOT = process.cwd();
-export const DATA_DIR = path.join(ROOT, 'data', 'mazos');
-export const RESEARCH_DIR = path.join(ROOT, 'research', 'mazos');
+export const ROOT = process.env.MAZOS_RUNTIME_ROOT || process.cwd();
+export const DATA_DIR = process.env.MAZOS_DATA_DIR || path.join(ROOT, 'data', 'mazos');
+export const RESEARCH_DIR = process.env.MAZOS_RESEARCH_DIR || path.join(ROOT, 'research', 'mazos');
 export const RUN_DIR = path.join(DATA_DIR, 'runs');
 export const INGEST_QUEUE = path.join(DATA_DIR, 'ingest-queue.jsonl');
 export const VAULT_INDEX = path.join(DATA_DIR, 'vault-index.json');
