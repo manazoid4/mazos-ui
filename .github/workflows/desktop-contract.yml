@@ -36,5 +36,17 @@ jobs:
       - name: Rust check
         run: cargo check --manifest-path src-tauri/Cargo.toml
 
-      - name: Desktop runtime audit report
-        run: npm run audit:desktop
+      - name: Strict desktop runtime contract
+        run: npm run check:desktop
+
+      - name: Build packaged desktop application
+        run: npm run tauri:build
+
+      - name: Upload Windows installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: mazos-desktop-pr-${{ github.event.pull_request.number || github.run_number }}
+          if-no-files-found: error
+          path: |
+            src-tauri/target/release/bundle/nsis/*.exe
+            src-tauri/target/release/bundle/msi/*.msi
