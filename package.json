@@ -11,6 +11,7 @@
     "build:desktop": "node scripts/build-desktop.mjs",
     "audit:desktop": "node scripts/audit-desktop-runtime.mjs",
     "check:desktop": "node scripts/audit-desktop-runtime.mjs --strict",
+    "smoke:desktop-backend": "node scripts/smoke-desktop-backend.mjs",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
