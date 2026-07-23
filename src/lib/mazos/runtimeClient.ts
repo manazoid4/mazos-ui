@@ -41,6 +41,7 @@ export async function installDesktopFetchAdapter(): Promise<void> {
 
   const connection = await getBackendConnection();
   const nativeFetch = globalThis.fetch.bind(globalThis);
+  const backendBaseUrl = connection.token ? connection.baseUrl : globalThis.location.origin;
 
   globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
     const value = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
@@ -52,7 +53,7 @@ export async function installDesktopFetchAdapter(): Promise<void> {
     }
     if (connection.token) headers.set('x-mazos-token', connection.token);
 
-    return nativeFetch(`${connection.baseUrl}${value}`, {
+    return nativeFetch(`${backendBaseUrl}${value}`, {
       ...init,
       headers,
     });
