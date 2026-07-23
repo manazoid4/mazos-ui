@@ -17,6 +17,10 @@ export type LoopFactoryInput = {
   agent?: LoopAgent;
 };
 
+export type LoopFactoryDependencies = {
+  resolveRepoPath?: (repoKey: string) => string | null;
+};
+
 export type LoopFactoryDraft = {
   def: LoopDef;
   gate: Pick<TaskGateOutput, 'approved' | 'score' | 'riskLevel' | 'blockers' | 'warnings' | 'missingInfo'>;
@@ -36,9 +40,10 @@ export function repoKeyPath(repoKey: string): string | null {
   return p && fs.existsSync(p) ? p : null;
 }
 
-export function generateLoopDraft(input: LoopFactoryInput): LoopFactoryDraft {
+export function generateLoopDraft(input: LoopFactoryInput, dependencies: LoopFactoryDependencies = {}): LoopFactoryDraft {
   const goal = input.goal.replace(/\s+/g, ' ').trim();
-  const repoPath = repoKeyPath(input.repo);
+  const resolveRepoPath = dependencies.resolveRepoPath || repoKeyPath;
+  const repoPath = resolveRepoPath(input.repo);
   const verifyActionIds = input.verifyActionId ? [input.verifyActionId] : [];
   const id = customLoopId(input.repo, goal);
 

@@ -1,0 +1,14 @@
+{
+  "workspaces": [
+    {
+      "id": "mazos-ui",
+      "label": "MAZos",
+      "path": "C:\\Users\\YOUR_NAME\\Projects\\mazos-ui"
+    },
+    {
+      "id": "jobfilter",
+      "label": "JobFilter",
+      "path": "C:\\Users\\YOUR_NAME\\Projects\\JobFilterV1"
+    }
+  ]
+}
