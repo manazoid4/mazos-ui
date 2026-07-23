@@ -39,11 +39,54 @@ jobs:
       - name: Strict desktop runtime contract
         run: npm run check:desktop
 
-      - name: Build packaged desktop application
-        run: npm run tauri:build
+  package:
+    needs: verify
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable-msvc
+
+      - name: Install dependencies
+        run: npm ci --silent
+
+      - name: Build desktop frontend and authenticated backend assets
+        shell: pwsh
+        run: |
+          npm run build:desktop *> desktop-assets.log
+          $code = $LASTEXITCODE
+          Get-Content desktop-assets.log -Tail 160
+          if ($code -ne 0) { exit $code }
 
       - name: Smoke packaged authenticated backend
         run: npm run smoke:desktop-backend
+
+      - name: Build EXE and MSI installers
+        shell: pwsh
+        run: |
+          $env:MAZOS_DESKTOP_ASSETS_READY = '1'
+          npm run tauri:build *> desktop-bundle.log
+          $code = $LASTEXITCODE
+          Get-Content desktop-bundle.log -Tail 160
+          if ($code -ne 0) { exit $code }
+
+      - name: Upload packaging diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mazos-desktop-diagnostics-${{ github.event.pull_request.number || github.run_number }}
+          if-no-files-found: ignore
+          path: |
+            desktop-assets.log
+            desktop-bundle.log
 
       - name: Upload Windows installers
         uses: actions/upload-artifact@v4
