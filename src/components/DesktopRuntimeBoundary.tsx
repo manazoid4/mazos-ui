@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import {
   getDesktopGitStatus,
   getRuntimeStatus,
+  installDesktopFetchAdapter,
   listDesktopWorkspaces,
   saveDesktopWorkspaces,
   type DesktopWorkspace,
@@ -146,7 +147,12 @@ export function DesktopRuntimeBoundary({ children }: { children: React.ReactNode
 
   useEffect(() => {
     getRuntimeStatus()
-      .then(setStatus)
+      .then(async (runtimeStatus) => {
+        if (runtimeStatus.mode === 'desktop' && runtimeStatus.standaloneReady) {
+          await installDesktopFetchAdapter();
+        }
+        setStatus(runtimeStatus);
+      })
       .catch((reason: unknown) => {
         setError(reason instanceof Error ? reason.message : String(reason));
       });
