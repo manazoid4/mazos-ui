@@ -95,9 +95,9 @@ if (fs.existsSync(path.join(root, tauriConfig))) {
   if (config?.app?.security?.csp == null) {
     add('blocker', 'CSP_DISABLED', tauriConfig, 'Tauri Content Security Policy is null.');
   }
-  const resources = config?.bundle?.resources || [];
-  if (!resources.some((entry) => String(entry).includes('resources/server'))) {
-    add('blocker', 'BACKEND_NOT_BUNDLED', tauriConfig, 'Tauri bundle does not include packaged backend resources.');
+  const resourceText = JSON.stringify(config?.bundle?.resources ?? {});
+  if (!resourceText.includes('resources/server') || !resourceText.includes('server/')) {
+    add('blocker', 'BACKEND_NOT_BUNDLED', tauriConfig, 'Tauri bundle does not map packaged backend resources into the runtime server directory.');
   }
 }
 
