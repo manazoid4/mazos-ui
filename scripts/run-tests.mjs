@@ -26,26 +26,21 @@ if (files.length === 0) {
 console.log(`Running ${files.length} test file${files.length === 1 ? '' : 's'}:`);
 for (const file of files) console.log(`- ${path.relative(root, file)}`);
 
-function quoteForCmd(value) {
-  return `"${value.replaceAll('"', '""')}"`;
+const npmCli = process.env.npm_execpath;
+if (!npmCli || !fs.existsSync(npmCli)) {
+  console.error('npm_execpath is unavailable; run this test command through npm.');
+  process.exit(1);
 }
 
-const result = process.platform === 'win32'
-  ? spawnSync(
-      process.env.ComSpec || 'cmd.exe',
-      [
-        '/d',
-        '/s',
-        '/c',
-        ['npx', '--yes', 'tsx', '--test', ...files.map(quoteForCmd)].join(' '),
-      ],
-      { cwd: root, stdio: 'inherit', shell: false },
-    )
-  : spawnSync('npx', ['--yes', 'tsx', '--test', ...files], {
-      cwd: root,
-      stdio: 'inherit',
-      shell: false,
-    });
+const result = spawnSync(
+  process.execPath,
+  [npmCli, 'exec', '--yes', '--', 'tsx', '--test', ...files],
+  {
+    cwd: root,
+    stdio: 'inherit',
+    shell: false,
+  },
+);
 
 if (result.error) {
   console.error(result.error.message);
