@@ -4,7 +4,7 @@
   "description": "Local operator console for bounded agent work, approvals and evidence.",
   "main": "index.js",
   "scripts": {
-    "test": "npx --yes tsx --test tests/",
+    "test": "node scripts/run-tests.mjs",
     "dev": "next dev -p 3046",
     "bridge": "node scripts/mazos-local-bridge.mjs",
     "build": "next build",
