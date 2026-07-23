@@ -49,7 +49,7 @@ export async function installDesktopFetchAdapter(): Promise<void> {
 
     const headers = new Headers(input instanceof Request ? input.headers : undefined);
     if (init?.headers) {
-      for (const [name, headerValue] of new Headers(init.headers).entries()) headers.set(name, headerValue);
+      new Headers(init.headers).forEach((headerValue, name) => headers.set(name, headerValue));
     }
     if (connection.token) headers.set('x-mazos-token', connection.token);
 
