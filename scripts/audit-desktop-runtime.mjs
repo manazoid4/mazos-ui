@@ -31,12 +31,12 @@ for (const file of clientFiles) {
   const isClient = /^\s*['"]use client['"];?/m.test(content);
   if (!isClient) continue;
 
-  if (/fetch\s*\(\s*[`'"]\/api\/mazos/.test(content)) {
+  if (/(?:fetch|mazosFetch)\s*\(\s*[`'"]\/api\/mazos/.test(content)) {
     add(
       'blocker',
       'CLIENT_DIRECT_API',
       file,
-      'Client component calls /api/mazos directly. Packaged desktop exports remove these route handlers; use the typed MAZos runtime client.',
+      'Client component calls /api/mazos directly or through a page-local wrapper. Packaged desktop exports remove these route handlers; use the typed MAZos runtime client.',
     );
   }
 
