@@ -26,12 +26,17 @@ if (files.length === 0) {
 console.log(`Running ${files.length} test file${files.length === 1 ? '' : 's'}:`);
 for (const file of files) console.log(`- ${path.relative(root, file)}`);
 
-const npx = process.platform === 'win32' ? 'npx.cmd' : 'npx';
-const result = spawnSync(npx, ['--yes', 'tsx', '--test', ...files], {
-  cwd: root,
-  stdio: 'inherit',
-  shell: false,
-});
+const result = process.platform === 'win32'
+  ? spawnSync(
+      process.env.ComSpec || 'cmd.exe',
+      ['/d', '/s', '/c', 'npx', '--yes', 'tsx', '--test', ...files],
+      { cwd: root, stdio: 'inherit', shell: false },
+    )
+  : spawnSync('npx', ['--yes', 'tsx', '--test', ...files], {
+      cwd: root,
+      stdio: 'inherit',
+      shell: false,
+    });
 
 if (result.error) {
   console.error(result.error.message);
