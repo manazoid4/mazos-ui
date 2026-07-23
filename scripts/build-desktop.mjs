@@ -19,9 +19,22 @@ const apiTemp = path.join(root, '.desktop-build-api-temp');
 const proxyFile = path.join(root, 'src', 'proxy.ts');
 const proxyTemp = path.join(root, '.desktop-build-proxy.ts');
 const serverResources = path.join(root, 'src-tauri', 'resources', 'server');
+const frontendEntry = path.join(root, 'out', 'index.html');
+const backendEntry = path.join(serverResources, 'server.js');
+const backendNode = path.join(serverResources, 'node.exe');
 
 if (process.platform !== 'win32') {
   throw new Error('The current MAZos desktop bundle targets Windows and must be built on Windows.');
+}
+
+if (process.env.MAZOS_DESKTOP_ASSETS_READY === '1') {
+  for (const required of [frontendEntry, backendEntry, backendNode]) {
+    if (!existsSync(required)) {
+      throw new Error(`MAZOS_DESKTOP_ASSETS_READY was set but required asset is missing: ${required}`);
+    }
+  }
+  console.log('[desktop-build] Reusing verified prebuilt desktop assets.');
+  process.exit(0);
 }
 
 function runNextBuild() {
@@ -66,7 +79,7 @@ function buildStandaloneBackend() {
   const configDir = path.join(root, 'config');
   if (existsSync(configDir)) cpSync(configDir, path.join(serverResources, 'config'), { recursive: true });
 
-  copyFileSync(process.execPath, path.join(serverResources, 'node.exe'));
+  copyFileSync(process.execPath, backendNode);
   writeFileSync(
     path.join(serverResources, 'mazos-runtime-manifest.json'),
     `${JSON.stringify({ builtAt: new Date().toISOString(), node: process.version }, null, 2)}\n`,
@@ -99,7 +112,7 @@ function buildStaticFrontend() {
     rmSync(proxyTemp, { force: true });
   }
 
-  if (!existsSync(path.join(root, 'out', 'index.html'))) {
+  if (!existsSync(frontendEntry)) {
     throw new Error('Desktop static frontend did not produce out/index.html.');
   }
 }
