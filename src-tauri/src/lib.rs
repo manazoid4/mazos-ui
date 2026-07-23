@@ -3,7 +3,7 @@ mod commands;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-  tauri::Builder::default()
+  let app = tauri::Builder::default()
     .setup(|app| {
       if cfg!(debug_assertions) {
         app.handle().plugin(
@@ -12,15 +12,26 @@ pub fn run() {
             .build(),
         )?;
       }
+
+      if let Err(error) = commands::start_backend(app.handle()) {
+        commands::record_backend_error(error);
+      }
       Ok(())
     })
     .invoke_handler(tauri::generate_handler![
+        commands::backend_connection,
         commands::runtime_status,
         commands::list_workspaces,
         commands::save_workspaces,
         commands::git_status,
         commands::git_log_recent,
     ])
-    .run(tauri::generate_context!())
-    .expect("error while running tauri application");
+    .build(tauri::generate_context!())
+    .expect("error while building MAZos desktop application");
+
+  app.run(|_app_handle, event| {
+    if matches!(event, tauri::RunEvent::Exit | tauri::RunEvent::ExitRequested { .. }) {
+      commands::stop_backend();
+    }
+  });
 }
