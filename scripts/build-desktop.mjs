@@ -38,8 +38,15 @@ if (process.env.MAZOS_DESKTOP_ASSETS_READY === '1') {
 }
 
 function runNextBuild() {
-  const npx = process.platform === 'win32' ? 'npx.cmd' : 'npx';
-  execFileSync(npx, ['next', 'build'], { cwd: root, stdio: 'inherit' });
+  const npmCli = process.env.npm_execpath;
+  if (!npmCli || !existsSync(npmCli)) {
+    throw new Error('npm_execpath is unavailable; run the desktop build through npm.');
+  }
+  execFileSync(
+    process.execPath,
+    [npmCli, 'exec', '--yes', '--', 'next', 'build'],
+    { cwd: root, stdio: 'inherit' },
+  );
 }
 
 function withNextConfig(configPath, callback) {
