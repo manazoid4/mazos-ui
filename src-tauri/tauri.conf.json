@@ -25,7 +25,7 @@
     "security": {
       "csp": {
         "default-src": "'self' customprotocol: asset:",
-        "connect-src": "ipc: http://ipc.localhost",
+        "connect-src": "ipc: http://ipc.localhost http://127.0.0.1:*",
         "font-src": ["'self'", "data:", "https://fonts.gstatic.com"],
         "img-src": "'self' asset: http://asset.localhost blob: data:",
         "style-src": "'unsafe-inline' 'self' https://fonts.googleapis.com"
@@ -34,7 +34,8 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": ["nsis", "msi"],
+    "resources": ["resources/server/**"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
