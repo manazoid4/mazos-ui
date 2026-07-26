@@ -4,7 +4,7 @@
   "description": "Command & Control Interface for MazOS.",
   "main": "index.js",
   "scripts": {
-    "test": "npx --yes tsx --test tests/",
+    "test": "npx --yes tsx --test tests/*.test.ts",
     "dev": "next dev -p 3046",
     "bridge": "node scripts/mazos-local-bridge.mjs",
     "build": "next build",
