@@ -13,10 +13,10 @@
     "windows": [
       {
         "label": "main",
-        "title": "MazOS",
-        "width": 1000,
-        "height": 720,
-        "minWidth": 760,
+        "title": "MazOS · Maz Works",
+        "width": 1320,
+        "height": 820,
+        "minWidth": 900,
         "minHeight": 560,
         "resizable": true,
         "fullscreen": false

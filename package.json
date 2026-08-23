@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "test": "node scripts/run-tests.mjs",
+    "test:ui": "playwright test",
     "dev": "next dev -p 3046",
     "bridge": "node scripts/mazos-local-bridge.mjs",
     "build": "next build",
@@ -23,14 +24,14 @@
   "license": "ISC",
   "dependencies": {
     "@base-ui/react": "^1.6.0",
-    "@tailwindcss/postcss": "^4.3.1",
+    "@tailwindcss/postcss": "^4.3.3",
     "@tauri-apps/api": "^2.11.1",
     "@tauri-apps/plugin-shell": "^2.3.5",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "js-yaml": "^5.1.0",
+    "js-yaml": "^5.3.0",
     "lucide-react": "^1.21.0",
-    "next": "^16.2.9",
+    "next": "^16.3.2",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "shadcn": "^4.12.0",
@@ -39,13 +40,14 @@
     "zustand": "^5.0.14"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@tauri-apps/cli": "^2.11.4",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^26.0.1",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "autoprefixer": "^10.5.2",
-    "postcss": "^8.5.15",
+    "postcss": "^8.5.26",
     "tailwindcss": "^4.3.1",
     "typescript": "^6.0.3"
   }

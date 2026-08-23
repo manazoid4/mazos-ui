@@ -129,7 +129,7 @@ export default function Page() {
     <header className="topbar">
       <div><h1>MAZOS · LOOP COCKPIT</h1><p className="mission">{mission||'define loops · gate them · collect receipts · ship'}</p></div>
       <div className="topRight">
-        <div className="topLinks"><a href="/hermes">HERMES</a></div>
+        <div className="topLinks"><a href="/call-desk">CALL DESK</a><a href="/hermes">HERMES</a></div>
         <div className="topStats">
           <span title={health.map(s=>`${s.label}: ${s.online?'on':'off'}`).join('\n')} className={critical?'bad inline':'ok'}>{critical?`${critical} down`:'● healthy'}</span>
           {shouldUseLocalBridge()&&<span className={bridge.available?'ok':'bad inline'}>{bridge.available?'bridge on':'bridge off'}</span>}
