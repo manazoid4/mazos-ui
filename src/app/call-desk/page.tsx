@@ -5,6 +5,7 @@ import {
   EMPTY_SCREENING, OBJECTION_RESPONSES, buildCallScript, callReadiness,
   type CallOutcome, type Prospect, type ProspectStatus, type WebsiteAudit,
 } from '@/lib/mazos/callDesk';
+import { isTauriRuntime } from '@/lib/mazos/runtimeClient';
 
 type Draft = Partial<Prospect> & Pick<Prospect, 'businessName' | 'phone'>;
 type ApiResult = { prospects?: Prospect[]; audit?: WebsiteAudit; error?: string };
@@ -129,6 +130,7 @@ export default function CallDeskPage() {
   const [message, setMessage] = useState('');
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<'active' | ProspectStatus>('active');
+  const [localRuntime, setLocalRuntime] = useState<boolean | null>(null);
 
   async function load() {
     setBusy('load');
@@ -139,7 +141,13 @@ export default function CallDeskPage() {
     } catch (reason) { setMessage(reason instanceof Error ? reason.message : String(reason)); }
     finally { setBusy(''); }
   }
-  useEffect(() => { load(); /* one local load on mount */ /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+  useEffect(() => {
+    const allowed = isTauriRuntime() || ['localhost', '127.0.0.1', '[::1]', '::1'].includes(window.location.hostname.toLowerCase());
+    setLocalRuntime(allowed);
+    if (allowed) load();
+    /* one local runtime check and load on mount */
+    /* eslint-disable-next-line react-hooks/exhaustive-deps */
+  }, []);
 
   function select(prospect: Prospect) { setSelectedId(prospect.id); setDraft(structuredClone(prospect)); setMode('edit'); setMessage(''); }
   function addNew() { setSelectedId(''); setDraft({ ...EMPTY_DRAFT, screening: { ...EMPTY_SCREENING } }); setMode('edit'); setMessage(''); }
@@ -192,6 +200,9 @@ export default function CallDeskPage() {
     followUps: prospects.filter(item => item.status === 'follow_up').length,
     booked: prospects.filter(item => item.status === 'booked').length,
   };
+
+  if (localRuntime === null) return <main className="callDeskShell"><div className="callCard"><p className="callKicker">MAZ WORKS CALL DESK</p><h1>Checking local runtime…</h1></div></main>;
+  if (!localRuntime) return <main className="callDeskShell"><div className="callCard localOnlyGate"><p className="callKicker">LOCAL WINDOWS WORKSTATION</p><h1>CALL DESK STAYS ON YOUR DEVICE</h1><p className="callSubtitle">Prospect records and website checks are deliberately unavailable on the hosted MazOS site. Open the installed Windows app to use Call Desk.</p><a className="callTextLink" href="/">Return to the Loop Cockpit</a></div></main>;
 
   if (mode === 'call' && selected) return <main className="callDeskShell"><LiveCall prospect={selected} saveCall={saveCall} cancel={() => setMode('edit')} busy={busy} /></main>;
 
