@@ -3,6 +3,7 @@ import path from 'node:path';
 import { NextResponse } from 'next/server';
 import { CALL_DESK_PROSPECTS } from '@/lib/mazos/paths';
 import { callReadiness, normalizeProspect, statusForOutcome, type CallOutcome, type CallRecord, type Prospect } from '@/lib/mazos/callDesk';
+import { isLocalCallDeskRequest } from '@/lib/mazos/callDeskAccess';
 
 function readProspects(): Prospect[] {
   if (!fs.existsSync(CALL_DESK_PROSPECTS)) return [];
@@ -19,11 +20,13 @@ function writeProspects(prospects: Prospect[]) {
   fs.renameSync(temporary, CALL_DESK_PROSPECTS);
 }
 
-export async function GET() {
+export async function GET(req: Request) {
+  if (!isLocalCallDeskRequest(req)) return NextResponse.json({ error: 'Maz Works Call Desk is available only in the local Windows app.' }, { status: 403 });
   return NextResponse.json({ prospects: readProspects() });
 }
 
 export async function POST(req: Request) {
+  if (!isLocalCallDeskRequest(req)) return NextResponse.json({ error: 'Maz Works Call Desk is available only in the local Windows app.' }, { status: 403 });
   const body = await req.json().catch(() => null);
   if (!body || !['upsert', 'call'].includes(body.action)) return NextResponse.json({ error: 'action must be upsert or call' }, { status: 400 });
   const prospects = readProspects();

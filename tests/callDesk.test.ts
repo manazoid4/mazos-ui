@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { callReadiness, normalizeProspect, statusForOutcome } from '../src/lib/mazos/callDesk';
 import { analyseWebsiteHtml, isPrivateAddress, normalizeWebsiteUrl } from '../src/lib/mazos/websiteAudit';
+import { isLocalCallDeskUrl } from '../src/lib/mazos/callDeskAccess';
 
 function prospect() {
   return normalizeProspect({
@@ -47,6 +48,13 @@ test('specific consent needs an evidence note before the call gate opens', () =>
   assert.equal(callReadiness(item).ready, false);
   item.screening.note = 'Owner requested a call on 20 August 2026 via the website form.';
   assert.equal(callReadiness(item).ready, true);
+});
+
+test('Call Desk refuses hosted URLs even when their host header looks local', () => {
+  assert.equal(isLocalCallDeskUrl('http://127.0.0.1:3046/call-desk'), true);
+  assert.equal(isLocalCallDeskUrl('https://mazos-command-centre.vercel.app/call-desk'), false);
+  assert.equal(isLocalCallDeskUrl('http://127.0.0.1/call-desk', { vercel: true }), false);
+  assert.equal(isLocalCallDeskUrl('http://tauri.localhost/call-desk', { desktopToken: true }), true);
 });
 
 test('website evidence is deterministic and ranks missing conversion paths', () => {
