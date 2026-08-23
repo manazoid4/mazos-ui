@@ -6,5 +6,5 @@
 - [x] Link the Call Desk from MazOS and add dedicated responsive styling.
 - [x] Document the operator workflow and compliance boundary.
 - [x] Run lint, tests, web build, desktop audit, backend smoke test, and Tauri packaging.
-- [ ] Commit, push `agents/maz-works-call-desk`, and open a PR.
+- [x] Commit, push `agents/maz-works-call-desk`, and open PR #57.
 - [ ] Update and push the Maz Works Knowledge Vault session record.
