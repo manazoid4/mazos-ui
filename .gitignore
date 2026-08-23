@@ -24,3 +24,8 @@ yarn-error.log*
 
 .vercel
 .claude/
+.codebase-memory/
+test-results/
+.call-desk-dev*.log
+src-tauri/resources/server/*
+!src-tauri/resources/server/.gitkeep

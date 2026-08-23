@@ -62,6 +62,23 @@ npm run tauri:build
 - **Decisions** — pause agents for human approval.
 - **Evidence** — collect build, test, diff, commit and run results.
 - **Hermes controls** — inspect configured profiles and local capabilities.
+- **Maz Works Call Desk** — research local prospects, capture bounded homepage evidence, gate live calls, follow a practical script and log outcomes locally.
+
+## Maz Works Call Desk
+
+Open `/call-desk` from the Loop Cockpit or navigate there directly. The intended operating loop is:
+
+1. Add one business using public contact details and record the source.
+2. Run the bounded homepage check and review the actual evidence before making any claim.
+3. Screen the number against both TPS and CTPS using a registered screening service, then check the Maz Works do-not-call list.
+4. Record the screening result and timestamp. Call Desk treats results older than 28 days as stale under the Maz Works operating policy.
+5. Open the live call screen, use the permission-based script, capture the prospect's own words, and save one clear outcome and next action.
+
+Prospect records live under the existing local MazOS data directory (`data/mazos/call-desk-prospects.json` in development and the app-local data directory in the packaged desktop). They are deliberately excluded from Git. The Call Desk does not automate dialling, record calls, perform AI voice screening, query TPS/CTPS, or upload prospect data to a cloud CRM.
+
+The homepage checker fetches only the supplied public HTTP(S) page, follows at most four redirects, has a 10-second timeout and 1 MB response cap, and rejects localhost/private-network targets. Its score is a narrow lead-research signal, not a complete accessibility, SEO, performance, or security audit.
+
+For live UK B2B marketing calls, the operator remains responsible for current PECR and data-protection compliance, displaying a callable number, identifying Maz Works, honouring objections immediately, and maintaining suppression records. See the linked ICO guidance in the Call Desk before starting a call session.
 
 ## Repository boundaries
 
@@ -77,6 +94,7 @@ MAZos coordinates other projects but does not absorb them:
 
 ```bash
 npm test
+npm run test:ui
 npm run lint
 npm run build
 cargo check --manifest-path src-tauri/Cargo.toml

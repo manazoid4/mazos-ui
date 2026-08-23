@@ -103,8 +103,8 @@ export function readProfileDocs(name: string): Record<string, string> {
   const dir = profileDir(name);
   const docs: Record<string, string> = {};
   for (const doc of EDITABLE_DOCS) {
-    const p = path.join(dir, doc);
-    docs[doc] = fs.existsSync(p) ? fs.readFileSync(p, 'utf8') : '';
+    const p = path.join(/* turbopackIgnore: true */ dir, doc);
+    docs[doc] = fs.existsSync(/* turbopackIgnore: true */ p) ? fs.readFileSync(/* turbopackIgnore: true */ p, 'utf8') : '';
   }
   return docs;
 }
