@@ -202,12 +202,12 @@ export default function CallDeskPage() {
   };
 
   if (localRuntime === null) return <main className="callDeskShell"><div className="callCard"><p className="callKicker">MAZ WORKS CALL DESK</p><h1>Checking local runtime…</h1></div></main>;
-  if (!localRuntime) return <main className="callDeskShell"><div className="callCard localOnlyGate"><p className="callKicker">LOCAL WINDOWS WORKSTATION</p><h1>CALL DESK STAYS ON YOUR DEVICE</h1><p className="callSubtitle">Prospect records and website checks are deliberately unavailable on the hosted MazOS site. Open the installed Windows app to use Call Desk.</p><a className="callTextLink" href="/">Return to the Loop Cockpit</a></div></main>;
+  if (!localRuntime) return <main className="callDeskShell"><div className="callCard localOnlyGate"><p className="callKicker">LOCAL WINDOWS WORKSTATION</p><h1>CALL DESK STAYS ON YOUR DEVICE</h1><p className="callSubtitle">Prospect records and website checks are deliberately unavailable on the hosted MazOS site. Open the installed Windows app to use Call Desk.</p></div></main>;
 
   if (mode === 'call' && selected) return <main className="callDeskShell"><LiveCall prospect={selected} saveCall={saveCall} cancel={() => setMode('edit')} busy={busy} /></main>;
 
   return <main className="callDeskShell">
-    <header className="callTopbar"><div><p className="callKicker">MAZ WORKS · LOCAL SALES WORKSTATION</p><h1>CALL DESK</h1><p className="callSubtitle">Evidence first. Honest conversation. One bounded next step.</p></div><nav><a href="/">Loop Cockpit</a><a href="/hermes">Hermes</a></nav></header>
+    <header className="callTopbar"><div><p className="callKicker">MAZ WORKS · LOCAL SALES WORKSTATION</p><h1>CALL DESK</h1><p className="callSubtitle">Evidence first. Honest conversation. One bounded next step.</p></div><nav aria-label="Current workspace"><span className="callNavCurrent">CALL DESK</span></nav></header>
     <section className="callStats"><div><b>{stats.active}</b><span>active prospects</span></div><div><b>{stats.ready}</b><span>screened + ready</span></div><div><b>{stats.followUps}</b><span>follow-ups</span></div><div><b>{stats.booked}</b><span>meetings booked</span></div></section>
     {message && <div className="callMessage" role="status">{message}</div>}
     <div className="callWorkspace">
