@@ -9,7 +9,6 @@ const serverConfig = {
     '*': [
       'src-tauri/**',
       'out/**',
-      '.next/**',
     ],
   },
 };
