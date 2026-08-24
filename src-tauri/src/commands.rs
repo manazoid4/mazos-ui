@@ -227,8 +227,12 @@ pub fn start_backend(app: &AppHandle) -> Result<(), String> {
 
     let port = reserve_port()?;
     let token = Uuid::new_v4().to_string();
+    // The bundled Windows Node runtime can misparse an absolute `C:\...` entry
+    // script when launched through the packaged Tauri process (it treats `C:`
+    // as the script path). The child runs with `server_dir` as its working
+    // directory, so pass the validated script by its relative filename.
     let mut child = Command::new(&node_path)
-        .arg(&server_path)
+        .arg("server.js")
         .current_dir(&server_dir)
         .env("HOSTNAME", "127.0.0.1")
         .env("PORT", port.to_string())
