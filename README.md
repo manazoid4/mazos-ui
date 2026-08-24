@@ -1,5 +1,7 @@
 # MAZos
 
+Paid Agent Nudge integration planning: [`docs/AGENT_NUDGE_SESSION_START.md`](docs/AGENT_NUDGE_SESSION_START.md).
+
 MAZos is Maz's local operator console for prioritising project work, defining bounded agent runs, approving risky actions, verifying outcomes and preserving evidence.
 
 ## Current status
