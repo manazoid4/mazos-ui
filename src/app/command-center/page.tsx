@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import styles from './command-center.module.css';
 import { AgentDirectoryPanel, type AgentEntry } from '@/components/AgentDirectoryPanel';
+import { VoiceInput } from '@/components/VoiceInput';
 
 type SpineRow = {
   product: string; productId: string; nextAction: string; objective: string;
@@ -195,6 +196,7 @@ export default function CommandCenterPage() {
               <p>Write normally. MAZos prepares a scoped, memory-aware mission you can give to an existing agent.</p>
               <label className={styles.srOnly} htmlFor="mission">Mission instruction</label>
               <textarea id="mission" className={styles.composer} placeholder="e.g. Finish the Zawiya Trust demo, run a design review, and show me the risks before deployment…" value={mission} onChange={e => setMission(e.target.value)} maxLength={3000}/>
+              <VoiceInput onTranscript={spoken => setMission(previous => (previous.trim() ? previous.trim() + '\\n' : '') + spoken)} />
               <div className={styles.formLine}><label>PROJECT<select value={selected || picked?.productId || ''} onChange={e => setSelected(e.target.value)}><option value="">Current priority</option>{rows.map(row => <option key={row.productId} value={row.productId}>{row.product}</option>)}</select></label><label>AGENT<select value={target} onChange={e => setTarget(e.target.value)}><option>Codex</option><option>Claude</option><option>Hermes</option><option>ILM</option></select></label></div>
               <button className={styles.copyButton} type="button" onClick={() => void copy(brief, 'Mission copied')}><Clipboard size={17}/> Copy mission for {target}<ArrowRight size={17}/></button>
               <div className={styles.copyFeedback} aria-live="polite">{copyState ? <><Check size={14}/>{copyState}</> : <><ShieldCheck size={14}/>Copies a brief; never launches a process or consumes model credits.</>}</div>
