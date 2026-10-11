@@ -1,4 +1,4 @@
-# MAZos Command Centre — Codex/Astra one-shot completion brief
+> **Superseded 11 Oct 2026:** Maz chose **Claude Opus 5.5 Extra** as the primary builder with cheaper workers and a voice/wake-word scope. Use [`COMMAND_CENTRE_OPUS_ONE_SHOT_2026-10-11.md`](COMMAND_CENTRE_OPUS_ONE_SHOT_2026-10-11.md) for all new work. This Codex version is retained for history only.\n\n# MAZos Command Centre — Codex/Astra one-shot completion brief
 Date: 11 October 2026. Working branch: `agents/personal-command-centre-20261011` in `manazoid4/mazos-ui`.
 
 ## Your job
