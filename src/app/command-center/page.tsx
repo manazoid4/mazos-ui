@@ -8,6 +8,7 @@ import {
   Terminal, Workflow, AlertCircle, Layers3,
 } from 'lucide-react';
 import styles from './command-center.module.css';
+import { AgentDirectoryPanel, type AgentEntry } from '@/components/AgentDirectoryPanel';
 
 type SpineRow = {
   product: string; productId: string; nextAction: string; objective: string;
@@ -20,7 +21,7 @@ type Decision = { id: string; question: string; context: string; status: string;
 type Repo = { id: string; label: string; exists: boolean; branch: string; dirty: boolean; unpushedCount: number; lastCommitIso: string | null; github: string };
 type Run = { id?: string; action?: string; actionId?: string; name?: string; startedAt?: string; endedAt?: string; timestamp?: string; ok?: boolean; success?: boolean };
 type Service = { id: string; label: string; kind?: string; online: boolean; signal: string; expected?: string; meaning?: string };
-type Agent = { id: string; label: string; purpose: string; harness: string; device: string; state: 'configured' | 'profile-detected' | 'unverified'; evidence: string; observedAt: string | null; accountSlot?: string };
+type Agent = AgentEntry;
 type DashboardData = {
   spine: Spine | null; decisions: Decision[] | null; repos: Repo[] | null; agents: Agent[] | null;
   runs: Run[] | null; health: Service[] | null; errors: string[]; fetchedAt: string | null;
@@ -191,7 +192,11 @@ export default function CommandCenterPage() {
           </div>
 
           <div className={styles.lowerGrid}>
-            <section className={styles.panel} id="agents"><SectionLabel trailing={<span>PROFILE ≠ LIVE STATUS</span>}>03 / AGENT DIRECTORY</SectionLabel><h2>Your existing specialists</h2><div className={styles.agents}>{data.agents ? data.agents.map(a=><div className={styles.agentRow} key={a.id} title={a.evidence}><span className={styles.avatar}>{a.label.replace(/[^A-Za-z0-9]/g, '').slice(0,2).toUpperCase()}</span><div><b>{a.label}</b><small>{a.purpose} · {a.harness}</small></div><span className={styles.unverified}>{a.state === 'profile-detected' ? 'Profile found' : a.state === 'configured' ? 'Configured' : 'Unverified'}</span></div>):<p className={styles.rowFallback}>Agent directory unavailable.</p>}</div><p className={styles.panelNote}>Agent profiles come from the local Hermes directory. Both Claude account slots are separate. Profile found ≠ agent online; live heartbeat checks are still pending.</p></section>
+            <section className={styles.panel} id="agents"><SectionLabel trailing={<span>VERIFIED MACHINE EVIDENCE</span>}>03 / AGENT DIRECTORY</SectionLabel><h2>Your agent network</h2><AgentDirectoryPanel agents={data.agents} onHandoff={agent => {
+              setTarget(agent.harness === 'Claude Code' ? 'Claude' : agent.harness === 'Hermes' ? 'Hermes' : agent.harness === 'Codex' ? 'Codex' : 'Codex');
+              setMission('Inspect current context and continue the next safe task for ' + agent.label + ' (' + agent.purpose + '). Confirm the actual agent availability first.');
+              document.getElementById('dispatch')?.scrollIntoView({ behavior: 'smooth' });
+            }}/></section>
             <section className={styles.panel} id="approvals"><SectionLabel trailing={<span>{openDecisions.length} OPEN</span>}>04 / YOUR APPROVALS</SectionLabel><h2>Nothing important moves silently.</h2>{data.decisions ? (openDecisions.length ? <div className={styles.approvals}>{openDecisions.slice(0,4).map(d=><div className={styles.approval} key={d.id}><span className={styles.approvalDot}></span><div><b>{d.question}</b><small>{d.source} · {shortDate(d.createdAt)}</small></div></div>)}</div>:<p className={styles.clearState}><ShieldCheck size={17}/> No open decisions in the local approval log.</p>) : <p className={styles.rowFallback}>Approval log unavailable.</p>}<p className={styles.panelNote}>Approvals are display-only here. Existing project and safety gates remain authoritative.</p></section>
           </div>
           <div className={styles.footerGrid}><section className={styles.panel}><SectionLabel trailing={<span>NOT AGENT HEARTBEATS</span>}>05 / SERVICE SIGNALS</SectionLabel><div className={styles.signalRows}>{data.health ? localHealth.slice(0,5).map(s=><div key={s.id}><span><i className={s.online ? styles.tinyOk : styles.tinyWarn}></i>{s.label}</span><b>{s.online ? 'Reachable' : s.expected === 'local-optional' ? 'Not running (optional)' : 'Unreachable'}</b></div>):<p className={styles.rowFallback}>Local health check unavailable.</p>}</div></section><section className={styles.panel}><SectionLabel trailing={<span>LOCAL RECEIPTS</span>}>06 / LATEST ACTIVITY</SectionLabel><div className={styles.signalRows}>{data.runs ? data.runs.length ? data.runs.slice(0,4).map((r,i)=><div key={String(r.id || i)}><span><i className={r.success || r.ok ? styles.tinyOk : styles.tinyMuted}></i>{r.action || r.actionId || r.name || 'Recorded action'}</span><b>{shortDate(r.endedAt || r.startedAt || r.timestamp)}</b></div>):<p className={styles.rowFallback}>No run receipts recorded here yet.</p>:<p className={styles.rowFallback}>Run history unavailable.</p>}</div></section></div>
