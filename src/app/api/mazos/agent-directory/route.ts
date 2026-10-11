@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { listProfiles } from '@/lib/mazos/hermesProfile';
+import { inspectHermesScheduledGateway } from '@/lib/mazos/agentDiscovery';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,7 +10,7 @@ type AgentRecord = {
   purpose: string;
   harness: string;
   device: string;
-  state: 'configured' | 'profile-detected' | 'unverified';
+  state: 'configured' | 'profile-detected' | 'unverified' | 'scheduled-running' | 'scheduled-ready';
   evidence: string;
   observedAt: string | null;
   accountSlot?: string;
@@ -33,6 +34,7 @@ function localProfiles(): AgentRecord[] {
     seen.add(key);
     return true;
   }).map(profile => {
+    const gateway = inspectHermesScheduledGateway(profile.name);
     const name = profile.name;
     const key = name.toLowerCase();
     return {
@@ -41,9 +43,9 @@ function localProfiles(): AgentRecord[] {
       purpose: key === 'ilm' ? 'Research, capture and memory' : key === 'scout' ? 'Prospect research and qualification' : profile.description || 'Hermes profile',
       harness: 'Hermes',
       device: 'Local Windows machine',
-      state: 'profile-detected' as const,
-      evidence: 'Hermes profile directory exists; does not establish the gateway is running',
-      observedAt: new Date().toISOString(),
+      state: (gateway.state === 'unknown' ? 'profile-detected' : gateway.state),
+      evidence: 'Hermes profile found. ' + gateway.evidence,
+      observedAt: gateway.observedAt || new Date().toISOString(),
     };
   });
 }
