@@ -17,6 +17,10 @@ test('command centre shows real API-backed information without fictional agent a
     { id: 'claude-b', label: 'Claude · Account B', purpose: 'Review', harness: 'Claude Code', device: 'Windows', state: 'unverified', evidence: 'slot only', observedAt: null },
     { id: 'hermes:ilm', label: 'ILM', purpose: 'Research', harness: 'Hermes', device: 'Windows', state: 'profile-detected', evidence: 'profile directory', observedAt: new Date().toISOString() }
   ] } }));
+  await page.route('**/api/mazos/personal-projects', r => r.fulfill({ json: { available: true, projects: [
+    { id: 'zawiya', label: 'Zawiya Trust demo', area: 'Client demo', nextAction: 'Verify hall rates with committee', declaredState: 'awaiting-committee', lastVerified: '2026-10-11', source: 'projects/zawiya-trust-demo/STATUS.md' }
+  ] } }));
+  await page.route('**/api/mazos/wakeword', r => r.fulfill({ json: {connected: false, state: 'offline', event: null} }));
   const writes: string[] = [];
   page.on('request', r => { if (r.method() !== 'GET' && r.url().includes('/api/mazos/')) writes.push(r.url()); });
   await page.goto('/command-center');
@@ -25,6 +29,10 @@ test('command centre shows real API-backed information without fictional agent a
   await expect(page.getByText('Claude · Account A')).toBeVisible();
   await expect(page.getByText('Claude · Account B')).toBeVisible();
   await expect(page.getByText('Profile detected').first()).toBeVisible();
+  await expect(page.getByText('Verify hall rates with committee')).toBeVisible();
+  await page.getByRole('button', { name: /Zawiya Trust demo/ }).click();
+  await expect(page.getByLabel('Mission instruction')).toContainText('projects/zawiya-trust-demo/STATUS.md');
+  await expect(page.getByRole('button', { name: 'Enable Hey Jarvis' })).toBeDisabled();
   await page.getByLabel('Mission instruction').fill('Audit the Zawiya demo');
   await expect(page.getByRole('button', { name: /Copy mission for Codex/ })).toBeVisible();
   expect(writes).toEqual([]);
