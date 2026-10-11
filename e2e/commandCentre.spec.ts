@@ -26,8 +26,8 @@ test('command centre shows real API-backed information without fictional agent a
   await page.goto('/command-center');
   await expect(page.getByRole('heading', { name: /command centre/i })).toBeVisible();
   await expect(page.getByText('Review Zawiya preview').first()).toBeVisible();
-  await expect(page.getByText('Claude · Account A')).toBeVisible();
-  await expect(page.getByText('Claude · Account B')).toBeVisible();
+  await expect(page.getByText('Claude · Account A').first()).toBeVisible();
+  await expect(page.getByText('Claude · Account B').first()).toBeVisible();
   await expect(page.getByText('Profile detected').first()).toBeVisible();
   await expect(page.getByText('Verify hall rates with committee')).toBeVisible();
   await page.getByRole('button', { name: /Zawiya Trust demo/ }).click();
