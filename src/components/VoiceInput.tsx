@@ -135,7 +135,7 @@ export function VoiceInput({ onTranscript }: { onTranscript: (text: string) => v
         {listening ? <MicOff size={16}/> : <Mic size={16}/>}
         {listening ? 'Stop dictation' : 'Voice dictation'}
       </button>
-      <button type="button" className={armed ? styles.listening : styles.trigger} onClick={toggleWake} disabled={available !== true || !wakeConnected} aria-pressed={armed}>
+      <button type="button" className={armed ? styles.listening : styles.trigger} onClick={toggleWake} disabled={available !== true || (!wakeConnected && !armed)} aria-pressed={armed}>
         <Radio size={15}/> {armed ? 'Hey Jarvis · armed' : 'Enable Hey Jarvis'}
       </button>
     </div>
