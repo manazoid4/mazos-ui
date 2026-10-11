@@ -7,8 +7,8 @@ import { DesktopRuntimeBoundary } from '@/components/DesktopRuntimeBoundary';
 const geist = Geist({ subsets: ['latin'], variable: '--font-sans' });
 
 export const metadata: Metadata = {
-  title: 'MAZos · Maz Works Call Desk',
-  description: 'Local operator console for bounded work, evidence-led client calls, approvals and receipts',
+  title: 'MAZos · Personal Command Centre',
+  description: 'Local-first operator console for projects, agent handoffs, decisions and evidence',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
