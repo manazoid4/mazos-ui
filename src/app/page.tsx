@@ -4,16 +4,8 @@ import { useEffect } from 'react';
 
 export default function HomePage() {
   useEffect(() => {
-    window.location.replace('/call-desk');
+    window.location.replace('/command-center');
   }, []);
 
-  return (
-    <main className="callDeskShell" aria-live="polite">
-      <div className="callCard">
-        <p className="callKicker">MAZ WORKS · LOCAL WINDOWS WORKSTATION</p>
-        <h1>OPENING CALL DESK</h1>
-        <p className="callSubtitle">Loading the Maz Works prospect and calling workspace…</p>
-      </div>
-    </main>
-  );
+  return <main style={{ padding: 40 }} aria-live="polite"><p>Opening MAZos Command Centre…</p></main>;
 }
