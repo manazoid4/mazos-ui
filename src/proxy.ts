@@ -18,6 +18,15 @@ function corsHeaders(origin: string | null) {
 }
 
 export function proxy(request: NextRequest) {
+  // A public/cloud preview is never the owner's Windows runtime.
+  // All real MAZos APIs are local-only until an explicitly authenticated
+  // hosted relay has been independently audited.
+  if (process.env.VERCEL) {
+    return NextResponse.json(
+      { ok: false, error: 'MAZos actions and private data require the authenticated local desktop runtime.' },
+      { status: 503, headers: { 'Cache-Control': 'no-store' } },
+    );
+  }
   const expectedToken = process.env.MAZOS_DESKTOP_TOKEN;
   if (!expectedToken) return NextResponse.next();
 
