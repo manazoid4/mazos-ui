@@ -1,0 +1,10 @@
+.wrapper{margin:12px 0 1px;display:grid;gap:8px}
+.row{display:flex;align-items:center;justify-content:space-between;gap:9px;flex-wrap:wrap}
+.trigger,.listening{display:flex;align-items:center;gap:9px;padding:9px 13px;border:1px solid #e4e1da;border-radius:8px;background:#f7f6f2;color:#494842;font-size:11px;font-weight:650;cursor:pointer}
+.trigger:hover{background:#ebe8e1}.trigger:disabled{opacity:.5;cursor:not-allowed}
+.listening{background:#f2f3ed;border-color:#abb99f;color:#53694d}
+.state{display:flex;align-items:center;gap:7px;color:#a4a09b;font-size:10px}
+.dotLive{width:7px;height:7px;border-radius:50%;background:#7c9d7e}
+.disclosure{display:flex;align-items:flex-start;gap:7px;font-size:10px;color:#a29d95;line-height:1.5;margin:1px 0 0}
+.disclosure svg{flex-shrink:0}
+.error{margin:0;color:#9f514a;font-size:11px;line-height:1.5}
