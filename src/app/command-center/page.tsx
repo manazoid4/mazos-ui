@@ -20,24 +20,19 @@ type Decision = { id: string; question: string; context: string; status: string;
 type Repo = { id: string; label: string; exists: boolean; branch: string; dirty: boolean; unpushedCount: number; lastCommitIso: string | null; github: string };
 type Run = { id?: string; action?: string; actionId?: string; name?: string; startedAt?: string; endedAt?: string; timestamp?: string; ok?: boolean; success?: boolean };
 type Service = { id: string; label: string; kind?: string; online: boolean; signal: string; expected?: string; meaning?: string };
+type Agent = { id: string; label: string; purpose: string; harness: string; device: string; state: 'configured' | 'profile-detected' | 'unverified'; evidence: string; observedAt: string | null; accountSlot?: string };
 type DashboardData = {
-  spine: Spine | null; decisions: Decision[] | null; repos: Repo[] | null;
+  spine: Spine | null; decisions: Decision[] | null; repos: Repo[] | null; agents: Agent[] | null;
   runs: Run[] | null; health: Service[] | null; errors: string[]; fetchedAt: string | null;
 };
-const INITIAL: DashboardData = { spine: null, decisions: null, repos: null, runs: null, health: null, errors: [], fetchedAt: null };
+const INITIAL: DashboardData = { spine: null, decisions: null, repos: null, agents: null, runs: null, health: null, errors: [], fetchedAt: null };
 const ENDPOINTS = [
   ['spine', '/api/mazos/shipping-spine'],
   ['decisions', '/api/mazos/decisions'],
   ['repos', '/api/mazos/repos'],
   ['runs', '/api/mazos/runs?limit=7'],
   ['health', '/api/mazos/health'],
-] as const;
-const AGENTS = [
-  { name: 'ILM', role: 'Research & memory', source: 'maz-agents · Hermes', initials: 'IL' },
-  { name: 'Scout', role: 'Lead research', source: 'maz-agents · setup to verify', initials: 'SC' },
-  { name: 'Codex', role: 'Build & ship', source: 'External coding session', initials: 'CX' },
-  { name: 'Claude', role: 'Review & design', source: 'External coding session', initials: 'CL' },
-  { name: 'Hermes', role: 'Local routing', source: 'Local profiles', initials: 'HE' },
+  ['agents', '/api/mazos/agent-directory'],
 ] as const;
 function shortDate(value: string | undefined | null) {
   if (!value) return 'Unknown';
@@ -77,6 +72,7 @@ export default function CommandCenterPage() {
         spine: (get('spine') as Spine | undefined) || null,
         decisions: ((get('decisions') as { decisions?: Decision[] } | undefined)?.decisions) || null,
         repos: ((get('repos') as { repos?: Repo[] } | undefined)?.repos) || null,
+        agents: ((get('agents') as { agents?: Agent[] } | undefined)?.agents) || null,
         runs: ((get('runs') as { runs?: Run[] } | undefined)?.runs) || null,
         health: ((get('health') as { services?: Service[] } | undefined)?.services) || null,
         errors: results.filter(result => result.error).map(result => result.name + ': ' + result.error),
@@ -195,7 +191,7 @@ export default function CommandCenterPage() {
           </div>
 
           <div className={styles.lowerGrid}>
-            <section className={styles.panel} id="agents"><SectionLabel trailing={<span>STATUS ≠ CONFIGURATION</span>}>03 / AGENT DIRECTORY</SectionLabel><h2>Your existing specialists</h2><div className={styles.agents}>{AGENTS.map(a=><div className={styles.agentRow} key={a.name}><span className={styles.avatar}>{a.initials}</span><div><b>{a.name}</b><small>{a.role} · {a.source}</small></div><span className={styles.unverified}>Not live-verified</span></div>)}</div><p className={styles.panelNote}>These identities come from your repos. No heartbeat means no “online” claim; live status integration is the next adapter task.</p></section>
+            <section className={styles.panel} id="agents"><SectionLabel trailing={<span>PROFILE ≠ LIVE STATUS</span>}>03 / AGENT DIRECTORY</SectionLabel><h2>Your existing specialists</h2><div className={styles.agents}>{data.agents ? data.agents.map(a=><div className={styles.agentRow} key={a.id} title={a.evidence}><span className={styles.avatar}>{a.label.replace(/[^A-Za-z0-9]/g, '').slice(0,2).toUpperCase()}</span><div><b>{a.label}</b><small>{a.purpose} · {a.harness}</small></div><span className={styles.unverified}>{a.state === 'profile-detected' ? 'Profile found' : a.state === 'configured' ? 'Configured' : 'Unverified'}</span></div>):<p className={styles.rowFallback}>Agent directory unavailable.</p>}</div><p className={styles.panelNote}>Agent profiles come from the local Hermes directory. Both Claude account slots are separate. Profile found ≠ agent online; live heartbeat checks are still pending.</p></section>
             <section className={styles.panel} id="approvals"><SectionLabel trailing={<span>{openDecisions.length} OPEN</span>}>04 / YOUR APPROVALS</SectionLabel><h2>Nothing important moves silently.</h2>{data.decisions ? (openDecisions.length ? <div className={styles.approvals}>{openDecisions.slice(0,4).map(d=><div className={styles.approval} key={d.id}><span className={styles.approvalDot}></span><div><b>{d.question}</b><small>{d.source} · {shortDate(d.createdAt)}</small></div></div>)}</div>:<p className={styles.clearState}><ShieldCheck size={17}/> No open decisions in the local approval log.</p>) : <p className={styles.rowFallback}>Approval log unavailable.</p>}<p className={styles.panelNote}>Approvals are display-only here. Existing project and safety gates remain authoritative.</p></section>
           </div>
           <div className={styles.footerGrid}><section className={styles.panel}><SectionLabel trailing={<span>NOT AGENT HEARTBEATS</span>}>05 / SERVICE SIGNALS</SectionLabel><div className={styles.signalRows}>{data.health ? localHealth.slice(0,5).map(s=><div key={s.id}><span><i className={s.online ? styles.tinyOk : styles.tinyWarn}></i>{s.label}</span><b>{s.online ? 'Reachable' : s.expected === 'local-optional' ? 'Not running (optional)' : 'Unreachable'}</b></div>):<p className={styles.rowFallback}>Local health check unavailable.</p>}</div></section><section className={styles.panel}><SectionLabel trailing={<span>LOCAL RECEIPTS</span>}>06 / LATEST ACTIVITY</SectionLabel><div className={styles.signalRows}>{data.runs ? data.runs.length ? data.runs.slice(0,4).map((r,i)=><div key={String(r.id || i)}><span><i className={r.success || r.ok ? styles.tinyOk : styles.tinyMuted}></i>{r.action || r.actionId || r.name || 'Recorded action'}</span><b>{shortDate(r.endedAt || r.startedAt || r.timestamp)}</b></div>):<p className={styles.rowFallback}>No run receipts recorded here yet.</p>:<p className={styles.rowFallback}>Run history unavailable.</p>}</div></section></div>
