@@ -15,6 +15,13 @@ const PROJECTS = [
   { id: 'leadfinder', label: 'Lead finder', file: 'projects/leadfinder/STATUS.md', area: 'Revenue' },
 ] as const;
 
+// Current projects whose canonical current-status file has not yet been
+// registered in Unified Memory. Display with no fabricated status/date.
+const UNVERIFIED_PROJECTS = [
+  { id: 'maz-pay', label: 'Maz Pay', area: 'Automation', source: 'https://github.com/manazoid4/maz-pay' },
+  { id: 'flipsignal', label: 'FlipSignal', area: 'Product', source: 'https://github.com/manazoid4/flipsignal' },
+] as const;
+
 function findRoot(): string | null {
   const home = process.env.USERPROFILE || os.homedir();
   const root = process.env.MAZOS_UNIFIED_MEMORY_ROOT;
@@ -49,5 +56,10 @@ export async function GET() {
       return { id: p.id, label: p.label, area: p.area, nextAction: nextAction(raw), declaredState, lastVerified, source: p.file };
     } catch { return null; }
   }).filter(x => x !== null);
-  return NextResponse.json({ available: true, projects, explanation: 'Project status is read from the local Unified Memory checkout. Check verification dates before relying on a task.' }, { headers: { 'Cache-Control': 'no-store' } });
+  const catalog = UNVERIFIED_PROJECTS.map(p => ({
+    id: p.id, label: p.label, area: p.area,
+    nextAction: 'Review current GitHub evidence before selecting work',
+    declaredState: 'not-yet-synced', lastVerified: null, source: p.source,
+  }));
+  return NextResponse.json({ available: true, projects: [...projects, ...catalog], explanation: 'Project status is read from the local Unified Memory checkout. Check verification dates before relying on a task.' }, { headers: { 'Cache-Control': 'no-store' } });
 }
