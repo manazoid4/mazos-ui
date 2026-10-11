@@ -25,7 +25,7 @@ function findRoot(): string | null {
     path.join(home, 'Desktop', 'unified-memory-database'),
     path.join(process.cwd(), '..', 'unified-memory-database'),
   ];
-  return candidates.find((p): p is string => Boolean(p && fs.existsSync(path.join(p, 'INDEX.md')) && fs.existsSync(path.join(p, '.git')))) || null;
+  return candidates.find((p): p is string => Boolean(p && fs.existsSync(/* turbopackIgnore: true */ path.join(p, 'INDEX.md')) && fs.existsSync(/* turbopackIgnore: true */ path.join(p, '.git')))) || null;
 }
 function nextAction(text: string): string {
   const body = text.replace(/^---\s*\r?\n[\s\S]*?\r?\n---\s*\r?\n/, '');
@@ -42,8 +42,8 @@ export async function GET() {
   const projects = PROJECTS.map(p => {
     const full = path.join(root, p.file);
     try {
-      if (!fs.existsSync(full) || !fs.statSync(full).isFile()) return null;
-      const raw = fs.readFileSync(full, 'utf8').slice(0, 32000);
+      if (!fs.existsSync(/* turbopackIgnore: true */ full) || !fs.statSync(/* turbopackIgnore: true */ full).isFile()) return null;
+      const raw = fs.readFileSync(/* turbopackIgnore: true */ full, 'utf8').slice(0, 32000);
       const lastVerified = raw.match(/^last_verified:\s*['"]?([^'"\r\n]+)['"]?\s*$/m)?.[1]?.trim() || null;
       const declaredState = raw.match(/^status:\s*['"]?([^'"\r\n]+)['"]?\s*$/m)?.[1]?.trim() || 'unknown';
       return { id: p.id, label: p.label, area: p.area, nextAction: nextAction(raw), declaredState, lastVerified, source: p.file };
