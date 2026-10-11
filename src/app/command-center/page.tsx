@@ -194,6 +194,11 @@ export default function CommandCenterPage() {
               <SectionLabel trailing={<span className={styles.readOnly}><LockKeyhole size={12}/> SAFE HANDOFF</span>}>02 / DIRECT THE WORK</SectionLabel>
               <h2>What should we work on?</h2>
               <p>Write normally. MAZos prepares a scoped, memory-aware mission you can give to an existing agent.</p>
+              <div className={styles.quickActions} aria-label="Mission starters">
+                <button type="button" onClick={() => {setTarget('Claude');setMission('Find my single highest-value shippable outcome for today. Reconcile recent Unified Memory handoffs with current GitHub PRs and real blockers. Prioritise near-term revenue and completed client work over more infrastructure. Propose one bounded task and verification.');}}>What to ship?</button>
+                <button type="button" onClick={() => {setTarget('Claude');setMission('Resume my latest unfinished verified handoff. Find the last active branch and existing changes first. Do not restart completed work, overwrite parallel agents, or invent progress. Finish the smallest safe next step and report proof.');}}>Resume work</button>
+                <button type="button" onClick={() => {setTarget('Hermes');setMission('Show my actual agents and latest verified activity across Hermes, Claude accounts and Codex. Distinguish running gateway, live session, configured only and unknown. Flag agents needing my approval; do not launch any task.');}}>Agent check</button>
+              </div>
               <label className={styles.srOnly} htmlFor="mission">Mission instruction</label>
               <textarea id="mission" className={styles.composer} placeholder="e.g. Finish the Zawiya Trust demo, run a design review, and show me the risks before deployment…" value={mission} onChange={e => setMission(e.target.value)} maxLength={3000}/>
               <VoiceInput onTranscript={spoken => setMission(previous => (previous.trim() ? previous.trim() + '\\n' : '') + spoken)} />
