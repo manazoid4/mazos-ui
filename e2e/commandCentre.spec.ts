@@ -34,7 +34,7 @@ test('command centre shows real API-backed information without fictional agent a
   await expect(page.getByLabel('Mission instruction')).toHaveValue(/zawiya-trust-demo/);
   await expect(page.getByRole('button', { name: 'Enable Hey Jarvis' })).toBeDisabled();
   await page.getByLabel('Mission instruction').fill('Audit the Zawiya demo');
-  await expect(page.getByRole('button', { name: /Copy mission for Codex/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Copy mission for Claude/ })).toBeVisible();
   expect(writes).toEqual([]);
 });
 
