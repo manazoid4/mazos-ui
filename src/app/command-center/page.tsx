@@ -19,7 +19,7 @@ type Spine = { generatedAt: string; verdict: { product: string; action: string; 
 type Decision = { id: string; question: string; context: string; status: string; source: string; createdAt: string };
 type Repo = { id: string; label: string; exists: boolean; branch: string; dirty: boolean; unpushedCount: number; lastCommitIso: string | null; github: string };
 type Run = { id?: string; action?: string; actionId?: string; name?: string; startedAt?: string; endedAt?: string; timestamp?: string; ok?: boolean; success?: boolean };
-type Service = { id: string; label: string; online: boolean; signal: string; expected?: string; meaning?: string };
+type Service = { id: string; label: string; kind?: string; online: boolean; signal: string; expected?: string; meaning?: string };
 type DashboardData = {
   spine: Spine | null; decisions: Decision[] | null; repos: Repo[] | null;
   runs: Run[] | null; health: Service[] | null; errors: string[]; fetchedAt: string | null;
@@ -72,13 +72,13 @@ export default function CommandCenterPage() {
         catch (error) { return { name, value: null, error: error instanceof Error ? error.message : 'Connection failed' }; }
       }));
       if (!active) return;
-      const get = (key: string) => results.find(result => result.name === key)?.value as Record<string, unknown> | undefined;
+      const get = (key: string): unknown => results.find(result => result.name === key)?.value;
       setData({
         spine: (get('spine') as Spine | undefined) || null,
-        decisions: (get('decisions')?.decisions as Decision[] | undefined) || null,
-        repos: (get('repos')?.repos as Repo[] | undefined) || null,
-        runs: (get('runs')?.runs as Run[] | undefined) || null,
-        health: (get('health')?.services as Service[] | undefined) || null,
+        decisions: ((get('decisions') as { decisions?: Decision[] } | undefined)?.decisions) || null,
+        repos: ((get('repos') as { repos?: Repo[] } | undefined)?.repos) || null,
+        runs: ((get('runs') as { runs?: Run[] } | undefined)?.runs) || null,
+        health: ((get('health') as { services?: Service[] } | undefined)?.services) || null,
         errors: results.filter(result => result.error).map(result => result.name + ': ' + result.error),
         fetchedAt: new Date().toISOString(),
       });
@@ -166,7 +166,7 @@ export default function CommandCenterPage() {
             <section className={styles.primaryPanel}>
               <SectionLabel trailing={<span>{data.spine ? 'EVIDENCE-LED PRIORITY' : 'AWAITING DATA'}</span>}>01 / WHAT MATTERS NOW</SectionLabel>
               {picked ? <div className={styles.priority}>
-                <div className={styles.priorityTitle}><div><span className={styles.eyetag}>{picked.product}</span><span className={styles.eyetag}>{picked.owner} next</span></div><span className={styles.priorityScore}>P{Math.max(1, Math.min(4, 4 - Math.floor(picked.score / 22)))}</span></div>
+                <div className={styles.priorityTitle}><div><span className={styles.eyetag}>{picked.product}</span><span className={styles.eyetag}>{picked.owner} next</span></div><span className={styles.priorityScore}>NEXT ACTION</span></div>
                 <h2>{data.spine?.verdict.action || picked.nextAction}</h2>
                 <p>{data.spine?.verdict.why || picked.commercialReason}</p>
                 <div className={styles.priorityFoot}><span><i className={picked.blocked ? styles.tinyWarn : styles.tinyOk}></i>{picked.blocked ? 'Waiting on blocker' : 'Ready for review'}</span><button type="button" onClick={() => {setSelected(picked.productId); document.getElementById('dispatch')?.scrollIntoView({behavior:'smooth'});}}>Prepare handoff <ArrowRight size={15}/></button></div>
