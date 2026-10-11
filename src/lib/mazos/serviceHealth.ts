@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 export type Service = {
   id: string;
   label: string;
@@ -17,7 +18,10 @@ export async function serviceHealth() {
   ];
   return Promise.all(services.map(async s => {
     const started = Date.now();
-    if (s.kind === 'vault') return { ...s, online: true, status: 'indexed', latencyMs: 0, signal: 'vault-ready', meaning: 'Local knowledge base exists; use summaries, not raw logs.' };
+    if (s.kind === 'vault') {
+      const online = Boolean(s.path && existsSync(s.path));
+      return { ...s, online, status: online ? 'found' : 'missing', latencyMs: 0, signal: online ? 'vault-found' : 'vault-missing', meaning: online ? 'Directory exists; index freshness and content not verified.' : 'Configured vault directory not found on this machine.' };
+    }
     try {
       const res = await fetch(s.url!, { signal: AbortSignal.timeout(1400) });
       const online = s.kind === 'cloud' ? res.status < 500 : res.status < 500;

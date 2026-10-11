@@ -30,3 +30,11 @@ jobs:
         run: npm run build
         env:
           NEXT_TELEMETRY_DISABLED: 1
+
+      - name: Install Chromium for UI checks
+        run: npx playwright install --with-deps chromium
+
+      - name: Command centre browser smoke
+        run: npx playwright test e2e/commandCentre.spec.ts
+        env:
+          NEXT_TELEMETRY_DISABLED: 1
