@@ -34,7 +34,14 @@ jobs:
         run: npm run build
 
       - name: Rust check
-        run: cargo check --manifest-path src-tauri/Cargo.toml
+        shell: pwsh
+        run: |
+          # Tauri validates bundle resource paths during cargo check. The real
+          # standalone server is generated only in the subsequent packaging job.
+          # Use an ephemeral empty directory for compile-only verification.
+          New-Item -ItemType Directory -Path src-tauri/resources/server -Force | Out-Null
+          cargo check --manifest-path src-tauri/Cargo.toml
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Strict desktop runtime contract
         run: npm run check:desktop
