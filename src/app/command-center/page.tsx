@@ -22,11 +22,12 @@ type Repo = { id: string; label: string; exists: boolean; branch: string; dirty:
 type Run = { id?: string; action?: string; actionId?: string; name?: string; startedAt?: string; endedAt?: string; timestamp?: string; ok?: boolean; success?: boolean };
 type Service = { id: string; label: string; kind?: string; online: boolean; signal: string; expected?: string; meaning?: string };
 type Agent = AgentEntry;
+type PersonalProject = { id: string; label: string; area: string; nextAction: string; declaredState: string; lastVerified: string | null; source: string };
 type DashboardData = {
-  spine: Spine | null; decisions: Decision[] | null; repos: Repo[] | null; agents: Agent[] | null;
+  spine: Spine | null; decisions: Decision[] | null; repos: Repo[] | null; agents: Agent[] | null; projects: PersonalProject[] | null;
   runs: Run[] | null; health: Service[] | null; errors: string[]; fetchedAt: string | null;
 };
-const INITIAL: DashboardData = { spine: null, decisions: null, repos: null, agents: null, runs: null, health: null, errors: [], fetchedAt: null };
+const INITIAL: DashboardData = { spine: null, decisions: null, repos: null, agents: null, projects: null, runs: null, health: null, errors: [], fetchedAt: null };
 const ENDPOINTS = [
   ['spine', '/api/mazos/shipping-spine'],
   ['decisions', '/api/mazos/decisions'],
@@ -34,6 +35,7 @@ const ENDPOINTS = [
   ['runs', '/api/mazos/runs?limit=7'],
   ['health', '/api/mazos/health'],
   ['agents', '/api/mazos/agent-directory'],
+  ['projects', '/api/mazos/personal-projects'],
 ] as const;
 function shortDate(value: string | undefined | null) {
   if (!value) return 'Unknown';
@@ -74,6 +76,7 @@ export default function CommandCenterPage() {
         decisions: ((get('decisions') as { decisions?: Decision[] } | undefined)?.decisions) || null,
         repos: ((get('repos') as { repos?: Repo[] } | undefined)?.repos) || null,
         agents: ((get('agents') as { agents?: Agent[] } | undefined)?.agents) || null,
+        projects: ((get('projects') as { projects?: PersonalProject[] } | undefined)?.projects) || null,
         runs: ((get('runs') as { runs?: Run[] } | undefined)?.runs) || null,
         health: ((get('health') as { services?: Service[] } | undefined)?.services) || null,
         errors: results.filter(result => result.error).map(result => result.name + ': ' + result.error),
@@ -169,12 +172,20 @@ export default function CommandCenterPage() {
                 <div className={styles.priorityFoot}><span><i className={picked.blocked ? styles.tinyWarn : styles.tinyOk}></i>{picked.blocked ? 'Waiting on blocker' : 'Ready for review'}</span><button type="button" onClick={() => {setSelected(picked.productId); document.getElementById('dispatch')?.scrollIntoView({behavior:'smooth'});}}>Prepare handoff <ArrowRight size={15}/></button></div>
               </div> : <div className={styles.empty}>{loading ? 'Loading verified project priorities…' : 'No project priority available. Check local workspace paths and the MAZos Shipping Spine.'}</div>}
               <div className={styles.projectMini} id="projects">
-                <SectionLabel trailing={<span>{rows.length} TRACKED</span>}>PROJECT PIPELINE</SectionLabel>
-                {rows.length ? rows.slice(0, 6).map(row =>
-                  <button key={row.productId} type="button" className={styles.projectRow} onClick={() => {setSelected(row.productId); document.getElementById('dispatch')?.scrollIntoView({behavior:'smooth'});}}>
+                <SectionLabel trailing={<span>{data.projects?.length ? 'UNIFIED MEMORY · SOURCE-DATED' : rows.length + ' PLAYBOOKS'}</span>}>PROJECT PIPELINE</SectionLabel>
+                {data.projects?.length ? data.projects.map(project =>
+                  <button key={project.id} type="button" className={styles.projectRow} title={'Source: ' + project.source + ' · Verified: ' + (project.lastVerified || 'unknown')} onClick={() => {
+                    setTarget('Claude');
+                    setMission('For ' + project.label + ': ' + project.nextAction + '. Check ' + project.source + ' and newer Git/PR evidence first; do not assume old notes are current. Draft the next safe shippable action.');
+                    document.getElementById('dispatch')?.scrollIntoView({behavior:'smooth'});
+                  }}>
+                    <span className={styles.projectIcon}><GitBranch size={15}/></span><span className={styles.projectName}><b>{project.label}</b><small>{project.nextAction}</small></span><span className={styles.projectMeta}>{project.lastVerified || 'NOT VERIFIED'}</span><ChevronRight size={16}/>
+                  </button>
+                ) : rows.length ? rows.slice(0, 6).map(row =>
+                  <button key={row.productId} type="button" className={styles.projectRow} onClick={() => {setSelected(row.productId);document.getElementById('dispatch')?.scrollIntoView({behavior:'smooth'});}}>
                     <span className={styles.projectIcon}><GitBranch size={15}/></span><span className={styles.projectName}><b>{row.product}</b><small>{row.nextAction}</small></span><span className={styles.projectMeta}>{row.blocked ? 'BLOCKED' : row.actionSource === 'playbook-bet' ? 'PLAYBOOK' : 'EVIDENCE'}</span><ChevronRight size={16}/>
                   </button>
-                ) : <p className={styles.rowFallback}>No project rows received.</p>}
+                ) : <p className={styles.rowFallback}>No project sources available. Connect local Unified Memory or register a workspace.</p>}
               </div>
             </section>
 
