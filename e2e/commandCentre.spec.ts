@@ -24,7 +24,7 @@ test('command centre shows real API-backed information without fictional agent a
   await expect(page.getByText('Review Zawiya preview').first()).toBeVisible();
   await expect(page.getByText('Claude · Account A')).toBeVisible();
   await expect(page.getByText('Claude · Account B')).toBeVisible();
-  await expect(page.getByText('Profile found')).toBeVisible();
+  await expect(page.getByText('Profile detected').first()).toBeVisible();
   await page.getByLabel('Mission instruction').fill('Audit the Zawiya demo');
   await expect(page.getByRole('button', { name: /Copy mission for Codex/ })).toBeVisible();
   expect(writes).toEqual([]);
